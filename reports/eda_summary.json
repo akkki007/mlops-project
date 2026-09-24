@@ -1,0 +1,16 @@
+{
+  "rows": 2500,
+  "positives": 124,
+  "positive_rate": 0.0496,
+  "class_counts": {
+    "none": 2376,
+    "other": 49,
+    "starch": 16,
+    "skimmed_milk_powder": 15,
+    "sodium_bicarbonate": 10,
+    "glucose": 10,
+    "water": 9,
+    "detergent": 8,
+    "urea": 7
+  }
+}

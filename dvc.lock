@@ -1,0 +1,82 @@
+schema: '2.0'
+stages:
+  ingest:
+    cmd: python -m milk_adulteration.data.ingest
+    deps:
+    - path: src/milk_adulteration/data/ingest.py
+      hash: md5
+      md5: 1867665fd6fa1a9fa05a41b97d08d8f3
+      size: 1807
+    params:
+      params.yaml:
+        ingest:
+          url: 
+            https://raw.githubusercontent.com/ommadav/Indian-Milk-Adulteration-Detection-Dataset/main/milk_combined_full_dataset.csv
+          sha256: 
+            7186d94e39e281863f3698f89610e7f3fd6ed4318f9fb9b85e06e24d724dfc18
+          output: data/raw/milk_combined_full_dataset.csv
+    outs:
+    - path: data/raw/milk_combined_full_dataset.csv
+      hash: md5
+      md5: 3ea13779ff22d83b7fc133af880e06e8
+      size: 16599475
+  validate:
+    cmd: python -m milk_adulteration.data.validate
+    deps:
+    - path: data/raw/milk_combined_full_dataset.csv
+      hash: md5
+      md5: 3ea13779ff22d83b7fc133af880e06e8
+      size: 16599475
+    - path: src/milk_adulteration/config.py
+      hash: md5
+      md5: d304e0b5a5aadd83b9439b7e18423207
+      size: 1951
+    - path: src/milk_adulteration/data/schema.py
+      hash: md5
+      md5: 3206f6b9cc4f4e92fea43d7a1d5b822f
+      size: 1949
+    - path: src/milk_adulteration/data/validate.py
+      hash: md5
+      md5: bf5474eccab445d09dbc5268adb126d9
+      size: 2995
+    params:
+      params.yaml:
+        validate:
+          input: data/raw/milk_combined_full_dataset.csv
+          output: data/interim/milk_clean.csv
+          rejected: data/interim/milk_rejected.csv
+    outs:
+    - path: data/interim/milk_clean.csv
+      hash: md5
+      md5: 29a13b4902a2a4f84a75c33fd0dabd50
+      size: 265322
+    - path: data/interim/milk_rejected.csv
+      hash: md5
+      md5: 9b17e784c7f72940cb5eaadbd4afee8e
+      size: 154
+  eda:
+    cmd: python -m milk_adulteration.eda
+    deps:
+    - path: data/interim/milk_clean.csv
+      hash: md5
+      md5: 29a13b4902a2a4f84a75c33fd0dabd50
+      size: 265322
+    - path: src/milk_adulteration/eda.py
+      hash: md5
+      md5: 555d12c8dfc66374c65cab34fa41ab3f
+      size: 3920
+    params:
+      params.yaml:
+        eda:
+          input: data/interim/milk_clean.csv
+          report: reports/eda.md
+          metrics: reports/eda_summary.json
+    outs:
+    - path: reports/eda.md
+      hash: md5
+      md5: ba526f164c99c9c21954266c972caab5
+      size: 2509
+    - path: reports/eda_summary.json
+      hash: md5
+      md5: f02c2d7242534dc107c19dde1d1f17a8
+      size: 274

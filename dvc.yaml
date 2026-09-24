@@ -1,0 +1,36 @@
+stages:
+  ingest:
+    cmd: python -m milk_adulteration.data.ingest
+    deps:
+      - src/milk_adulteration/data/ingest.py
+    params:
+      - ingest
+    outs:
+      - data/raw/milk_combined_full_dataset.csv
+
+  validate:
+    cmd: python -m milk_adulteration.data.validate
+    deps:
+      - data/raw/milk_combined_full_dataset.csv
+      - src/milk_adulteration/config.py
+      - src/milk_adulteration/data/schema.py
+      - src/milk_adulteration/data/validate.py
+    params:
+      - validate
+    outs:
+      - data/interim/milk_clean.csv
+      - data/interim/milk_rejected.csv
+
+  eda:
+    cmd: python -m milk_adulteration.eda
+    deps:
+      - data/interim/milk_clean.csv
+      - src/milk_adulteration/eda.py
+    params:
+      - eda
+    outs:
+      - reports/eda.md:
+          cache: false
+    metrics:
+      - reports/eda_summary.json:
+          cache: false

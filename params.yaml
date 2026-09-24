@@ -1,0 +1,14 @@
+ingest:
+  url: https://raw.githubusercontent.com/ommadav/Indian-Milk-Adulteration-Detection-Dataset/main/milk_combined_full_dataset.csv
+  sha256: 7186d94e39e281863f3698f89610e7f3fd6ed4318f9fb9b85e06e24d724dfc18
+  output: data/raw/milk_combined_full_dataset.csv
+
+validate:
+  input: data/raw/milk_combined_full_dataset.csv
+  output: data/interim/milk_clean.csv
+  rejected: data/interim/milk_rejected.csv
+
+eda:
+  input: data/interim/milk_clean.csv
+  report: reports/eda.md
+  metrics: reports/eda_summary.json
