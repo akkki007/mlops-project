@@ -9,8 +9,8 @@ Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulter
 | Week | Milestone | Status |
 | --- | --- | --- |
 | 1 | Data in: download, EDA, Pandera schema, DVC | Done |
-| 2 | Baselines: FSSAI rules, logistic regression, Random Forest | Next |
-| 3 | Two-stage XGBoost, augmentation, calibration | |
+| 2 | Baselines: FSSAI rules, logistic regression, Random Forest | Done |
+| 3 | Two-stage XGBoost, augmentation, calibration | Next |
 | 4 | FastAPI service, Docker, GitHub Actions | |
 | 5 | React dashboard, PostgreSQL, Prometheus + Grafana | |
 | 6 | Validation on real data, SHAP report, write-up | |
@@ -20,7 +20,8 @@ Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulter
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
-dvc repro          # ingest -> validate -> eda
+dvc repro          # ingest -> validate -> eda -> split -> baselines
+mlflow ui --backend-store-uri sqlite:///mlflow.db   # browse runs
 pytest -q
 ```
 
@@ -31,6 +32,8 @@ pytest -q
 | `ingest` | `milk_adulteration.data.ingest` | `data/raw/milk_combined_full_dataset.csv`, checked against the SHA-256 in `params.yaml` |
 | `validate` | `milk_adulteration.data.validate` | `data/interim/milk_clean.csv` (six features, IDs, labels) and `milk_rejected.csv` (failed rows with a reason) |
 | `eda` | `milk_adulteration.eda` | [`reports/eda.md`](reports/eda.md), `reports/eda_summary.json` (DVC metrics) |
+| `split` | `milk_adulteration.data.split` | `data/processed/{train,val,test}.csv`: 70/15/15, stratified on adulterant class, seed 42 |
+| `baselines` | `milk_adulteration.models.baselines` | [`reports/baselines.md`](reports/baselines.md), `reports/baselines.json`, one MLflow run per model |
 
 The source is the CC0 [Indian Milk Adulteration Detection Dataset](https://github.com/ommadav/Indian-Milk-Adulteration-Detection-Dataset)
 (2,500 rows, **synthetic**). Only the six field-level readings are kept; the lab-only
@@ -48,3 +51,25 @@ freezing point −1.0–0 °C, conductivity 2–10 mS/cm) and will be reused by 
 
 No DVC remote is configured yet; add one with `dvc remote add -d storage <url>` and
 `dvc push` to share cached data.
+
+## Baselines (Week 2)
+
+Full tables with 95% bootstrap CIs are in [`reports/baselines.md`](reports/baselines.md).
+Results are on synthetic data.
+
+- **FSSAI rules** (`models/rules.py`, fixed published thresholds): precision 1.00 but
+  recall 0.53 on test.
+- **Logistic regression** fails: the adulterant signals point in opposite directions
+  (water lowers density, glucose raises it), which a linear model can't separate.
+- **Random Forest + derived features**: test PR-AUC 0.93. Formalin and H₂O₂ (class
+  `other`) look like pure milk, so reaching recall ≥ 0.95 on *all* adulterants means
+  flagging most samples. On the detectable adulterants (`other` removed) it reaches
+  recall 1.00 and precision 1.00 (12 of 12, no false alarms).
+- **Stage 2** (which adulterant): best CV macro-F1 is 0.77 (Random Forest), under the
+  0.80 target. Starch and skimmed milk powder both raise SNF and get confused.
+
+Derived features (`features.py`): fat/SNF ratio, density residual versus Richmond's
+formula, and freezing-point deviation from −0.52 °C.
+
+MLflow runs are tagged with the SHA-256 of each split file and the git commit.
+Tracking is a local SQLite store (`mlflow.db`, not committed).

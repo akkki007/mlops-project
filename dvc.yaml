@@ -34,3 +34,34 @@ stages:
     metrics:
       - reports/eda_summary.json:
           cache: false
+
+  split:
+    cmd: python -m milk_adulteration.data.split
+    deps:
+      - data/interim/milk_clean.csv
+      - src/milk_adulteration/data/split.py
+    params:
+      - split
+    outs:
+      - data/processed/train.csv
+      - data/processed/val.csv
+      - data/processed/test.csv
+
+  baselines:
+    cmd: python -m milk_adulteration.models.baselines
+    deps:
+      - data/processed/train.csv
+      - data/processed/val.csv
+      - data/processed/test.csv
+      - src/milk_adulteration/evaluation.py
+      - src/milk_adulteration/features.py
+      - src/milk_adulteration/models/baselines.py
+      - src/milk_adulteration/models/rules.py
+    params:
+      - baselines
+    outs:
+      - reports/baselines.md:
+          cache: false
+    metrics:
+      - reports/baselines.json:
+          cache: false

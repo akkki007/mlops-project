@@ -9,10 +9,13 @@ description = "Two-stage milk adulteration detection service (MLOps project)"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "mlflow>=3.0",
+    "numpy>=1.26",
     "pandas>=2.2",
     "pandera>=0.24",
     "pyyaml>=6.0",
     "requests>=2.31",
+    "scikit-learn>=1.5",
 ]
 
 [project.optional-dependencies]

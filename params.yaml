@@ -12,3 +12,28 @@ eda:
   input: data/interim/milk_clean.csv
   report: reports/eda.md
   metrics: reports/eda_summary.json
+
+split:
+  input: data/interim/milk_clean.csv
+  output_dir: data/processed
+  seed: 42
+  val_size: 0.15
+  test_size: 0.15
+
+baselines:
+  seed: 42
+  target_recall: 0.95
+  bootstrap_rounds: 1000
+  stage2_cv_folds: 5
+  stage2_cv_repeats: 5
+  report: reports/baselines.md
+  metrics: reports/baselines.json
+  mlflow:
+    tracking_uri: sqlite:///mlflow.db
+    experiment: baselines
+  logreg:
+    C: 1.0
+    max_iter: 2000
+  random_forest:
+    n_estimators: 500
+    min_samples_leaf: 1

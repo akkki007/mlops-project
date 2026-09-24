@@ -80,3 +80,94 @@ stages:
       hash: md5
       md5: f02c2d7242534dc107c19dde1d1f17a8
       size: 274
+  split:
+    cmd: python -m milk_adulteration.data.split
+    deps:
+    - path: data/interim/milk_clean.csv
+      hash: md5
+      md5: 29a13b4902a2a4f84a75c33fd0dabd50
+      size: 265322
+    - path: src/milk_adulteration/data/split.py
+      hash: md5
+      md5: 05bebfa6bd2903da48fbee90de947459
+      size: 1544
+    params:
+      params.yaml:
+        split:
+          input: data/interim/milk_clean.csv
+          output_dir: data/processed
+          seed: 42
+          val_size: 0.15
+          test_size: 0.15
+    outs:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: e0acdacf0dbc275892a55f9b1e75b0ba
+      size: 40005
+    - path: data/processed/train.csv
+      hash: md5
+      md5: aa214d2eac093bc5cae4f9b25d75abbf
+      size: 185698
+    - path: data/processed/val.csv
+      hash: md5
+      md5: 31b96085cf085723e847a4da08fe452f
+      size: 39899
+  baselines:
+    cmd: python -m milk_adulteration.models.baselines
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: e0acdacf0dbc275892a55f9b1e75b0ba
+      size: 40005
+    - path: data/processed/train.csv
+      hash: md5
+      md5: aa214d2eac093bc5cae4f9b25d75abbf
+      size: 185698
+    - path: data/processed/val.csv
+      hash: md5
+      md5: 31b96085cf085723e847a4da08fe452f
+      size: 39899
+    - path: src/milk_adulteration/evaluation.py
+      hash: md5
+      md5: 7af34854500798426636e5c42c3d62c9
+      size: 3113
+    - path: src/milk_adulteration/features.py
+      hash: md5
+      md5: cdfa2b278899211f0d213df17b6a42f3
+      size: 1200
+    - path: src/milk_adulteration/models/baselines.py
+      hash: md5
+      md5: bed8ee2dd4e400855bd347f3fea330b6
+      size: 13020
+    - path: src/milk_adulteration/models/rules.py
+      hash: md5
+      md5: 9b94baccfb9377b25274623a689887ba
+      size: 1716
+    params:
+      params.yaml:
+        baselines:
+          seed: 42
+          target_recall: 0.95
+          bootstrap_rounds: 1000
+          stage2_cv_folds: 5
+          stage2_cv_repeats: 5
+          report: reports/baselines.md
+          metrics: reports/baselines.json
+          mlflow:
+            tracking_uri: sqlite:///mlflow.db
+            experiment: baselines
+          logreg:
+            C: 1.0
+            max_iter: 2000
+          random_forest:
+            n_estimators: 500
+            min_samples_leaf: 1
+    outs:
+    - path: reports/baselines.json
+      hash: md5
+      md5: e60b30a7c4f83e1056c64a26c81a0061
+      size: 12878
+    - path: reports/baselines.md
+      hash: md5
+      md5: b38e27f986eae838931cb1462f182c1e
+      size: 2607
