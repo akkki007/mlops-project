@@ -50,6 +50,20 @@ augment:
     - [water, starch]
     - [water, urea]
   rows_per_combo: 150
+  # Stretch copies of real pure rows onto typical published ranges for pure cow and
+  # buffalo milk, which are wider than the synthetic data's pure-milk ranges.
+  # Approximate literature values; replace them with your own lab's pure-milk data.
+  # The freezing-point upper bound stays at -0.520 C so that small amounts of added
+  # water remain detectable.
+  widen_pure:
+    rows: 2000
+    ranges:
+      fat_pct: [0.1, 8.0]
+      snf_pct: [8.3, 10.0]
+      density: [1.027, 1.034]
+      ph: [6.55, 6.8]
+      freezing_point: [-0.560, -0.520]
+      conductivity: [3.5, 5.5]
 
 train:
   seed: 42
@@ -90,15 +104,25 @@ promote:
 stress_test:
   seed: 0
   samples: 2000
-  # Published normal ranges for pure cow milk (dairy literature), deliberately
-  # wider than the synthetic training data. These are NOT real samples.
-  pure_ranges:
-    fat_pct: [3.0, 5.0]
-    snf_pct: [8.3, 9.2]
-    density: [1.027, 1.033]
-    ph: [6.6, 6.8]
-    freezing_point: [-0.550, -0.520]
-    conductivity: [4.0, 5.5]
+  # Typical published normal ranges for pure milk (approximate dairy-literature
+  # values), wider than the synthetic training data. These are NOT real samples.
+  populations:
+    cow:
+      fat_pct: [3.0, 5.0]
+      snf_pct: [8.3, 9.2]
+      density: [1.027, 1.033]
+      ph: [6.6, 6.8]
+      freezing_point: [-0.550, -0.520]
+      conductivity: [4.0, 5.5]
+    buffalo:
+      fat_pct: [5.0, 8.0]
+      snf_pct: [9.0, 10.0]
+      density: [1.030, 1.034]
+      ph: [6.6, 6.8]
+      freezing_point: [-0.560, -0.530]
+      conductivity: [3.5, 5.0]
+  # The one-reading sweep uses this population.
+  sweep_population: cow
   # Mixing law: reading' = (1 - w) * reading + w * water
   water: {fat_pct: 0.0, snf_pct: 0.0, density: 0.998, ph: 7.0, freezing_point: 0.0, conductivity: 0.5}
   water_fractions: [0.03, 0.05, 0.10, 0.15, 0.20, 0.30]

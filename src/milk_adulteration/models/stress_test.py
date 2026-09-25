@@ -36,17 +36,28 @@ def add_water(df: pd.DataFrame, water: dict[str, float], w: float) -> pd.DataFra
 
 def run(model: Cascade, train_pure: pd.DataFrame, p: dict[str, Any]) -> dict[str, Any]:
     rng = np.random.default_rng(p["seed"])
-    ranges = p["pure_ranges"]
-    pure = pure_samples(ranges, p["samples"], rng)
-    flagged = model.predict(pure)["is_adulterated"].to_numpy()
-
     train_range = {f: (float(train_pure[f].min()), float(train_pure[f].max())) for f in FEATURES}
-    inside = np.all([pure[f].between(*train_range[f]) for f in FEATURES], axis=0)
+
+    populations, accepted = {}, []
+    for name, ranges in p["populations"].items():
+        pure = pure_samples(ranges, p["samples"], rng)
+        flagged = model.predict(pure)["is_adulterated"].to_numpy()
+        inside = np.all([pure[f].between(*train_range[f]) for f in FEATURES], axis=0)
+        populations[name] = {
+            "range": {f: list(map(float, ranges[f])) for f in FEATURES},
+            "false_alarm_rate": float(flagged.mean()),
+            "inside_training_range": int(inside.sum()),
+            "false_alarm_rate_inside_training_range": (
+                float(flagged[inside].mean()) if inside.any() else None
+            ),
+        }
+        accepted.append(pure[~flagged])
 
     # Sweep: start inside both ranges, move one reading across its published range.
+    ranges = p["populations"][p["sweep_population"]]
     lo = {f: max(ranges[f][0], train_range[f][0]) for f in FEATURES}
     hi = {f: min(ranges[f][1], train_range[f][1]) for f in FEATURES}
-    base = pd.DataFrame({f: rng.uniform(lo[f], hi[f], 500) for f in FEATURES})
+    base = pd.DataFrame({f: rng.uniform(min(lo[f], hi[f]), hi[f], 500) for f in FEATURES})
     sweep = {}
     for f in FEATURES:
         values = np.linspace(*ranges[f], p["sweep_points"])
@@ -55,40 +66,52 @@ def run(model: Cascade, train_pure: pd.DataFrame, p: dict[str, Any]) -> dict[str
             for v in values
         ]
 
-    accepted = pure[~flagged].reset_index(drop=True)
+    accepted_all = pd.concat(accepted, ignore_index=True)
     water = {}
     for w in p["water_fractions"]:
-        pred = model.predict(add_water(accepted, p["water"], w))
+        pred = model.predict(add_water(accepted_all, p["water"], w))
         hit = pred["is_adulterated"].to_numpy()
-        water[str(w)] = {
-            "flagged": float(hit.mean()),
-            "named_water": float((pred.loc[hit, "adulterant"] == "water").mean())
-            if hit.any()
-            else 0.0,
-        }
+        named = (pred.loc[hit, "adulterant"] == "water").mean() if hit.any() else 0.0
+        water[str(w)] = {"flagged": float(hit.mean()), "named_water": float(named)}
 
     return {
-        "pure_false_alarm_rate": float(flagged.mean()),
-        "pure_false_alarm_rate_inside_training_range": float(flagged[inside].mean()),
-        "pure_inside_training_range": int(inside.sum()),
+        "populations": populations,
+        "pure_false_alarm_rate": float(
+            np.mean([v["false_alarm_rate"] for v in populations.values()])
+        ),
         "train_pure_range": train_range,
-        "published_range": {f: list(map(float, ranges[f])) for f in FEATURES},
+        "sweep_population": p["sweep_population"],
         "sweep": sweep,
         "water": water,
     }
 
 
 def render(r: dict[str, Any], p: dict[str, Any]) -> str:
+    names = list(r["populations"])
+    head = " | ".join(f"{n.title()} published range" for n in names)
     rows = [
-        f"| {f} | {r['published_range'][f][0]:g} to {r['published_range'][f][1]:g} | "
-        f"{r['train_pure_range'][f][0]:.3g} to {r['train_pure_range'][f][1]:.3g} |"
+        f"| {f} | "
+        + " | ".join(
+            f"{r['populations'][n]['range'][f][0]:g} to {r['populations'][n]['range'][f][1]:g}"
+            for n in names
+        )
+        + f" | {r['train_pure_range'][f][0]:.4g} to {r['train_pure_range'][f][1]:.4g} |"
         for f in FEATURES
+    ]
+
+    def pct(v: float | None) -> str:
+        return "n/a" if v is None else f"{v:.1%}"
+
+    fa_rows = [
+        f"| {n} | **{pct(m['false_alarm_rate'])}** | {m['inside_training_range']} | "
+        f"{pct(m['false_alarm_rate_inside_training_range'])} |"
+        for n, m in r["populations"].items()
     ]
     sweep_rows = []
     for f, pts in r["sweep"].items():
-        worst = max(pts, key=lambda x: x[1])
+        worst = max(rate for _, rate in pts)
         cells = " · ".join(f"{v:.4g}: {rate:.0%}" for v, rate in pts)
-        sweep_rows.append(f"| {f} | {worst[1]:.0%} | {cells} |")
+        sweep_rows.append(f"| {f} | {worst:.0%} | {cells} |")
     water_rows = [
         f"| {float(w):.0%} | {m['flagged']:.1%} | {m['named_water']:.1%} |"
         for w, m in r["water"].items()
@@ -101,20 +124,24 @@ They probe what the synthetic training data cannot: pure milk across *published*
 normal ranges, and water added by the physical mixing law. Real lab samples are
 still needed; see GUIDE.md.
 
+Caveat: training widens pure milk onto similar published ranges
+(`augment.widen_pure`), so passing section 1 shows the widening took effect; it is
+not independent evidence about real milk.
+
 ## 1. False alarms on pure milk
 
-{p["samples"]} pure samples, each reading drawn uniformly from its published normal
-range for cow milk.
+{p["samples"]} pure samples per population, each reading drawn uniformly and
+independently from its published normal range.
 
-- **Flagged as adulterated: {r["pure_false_alarm_rate"]:.1%}**
-- Of the {r["pure_inside_training_range"]} that also fall inside the synthetic data's
-  pure-milk ranges: {r["pure_false_alarm_rate_inside_training_range"]:.1%}
+| Population | Flagged | Inside synthetic pure ranges | Flagged among those |
+|---|---|---|---|
+{nl.join(fa_rows)}
 
-| Reading | Published normal range | Synthetic pure-milk range (training) |
-|---|---|---|
+| Reading | {head} | Synthetic pure-milk range (training, before widening) |
+|---|{"---|" * len(names)}---|
 {nl.join(rows)}
 
-## 2. Which reading causes false alarms
+## 2. Which reading causes false alarms ({r["sweep_population"]} milk)
 
 Each row starts from pure samples inside both ranges and moves one reading across
 its published range. Cells show the value, then the share flagged.
@@ -125,7 +152,7 @@ its published range. Cells show the value, then the share flagged.
 
 ## 3. Water added by the mixing law
 
-Water mixed into the pure samples the model accepted:
+Water mixed into the pure samples the model accepted (all populations):
 reading′ = (1 − w) · reading + w · water, with water at fat 0, SNF 0, density 0.998,
 pH 7.0, freezing point 0 °C and conductivity 0.5 mS/cm.
 
@@ -146,14 +173,11 @@ def main() -> None:
     r = run(model, train[train["adulterant"] == PURE_CLASS], p)
     resolve(p["report"]).write_text(render(r, p))
     summary = {
-        "pure_false_alarm_rate": r["pure_false_alarm_rate"],
-        "pure_false_alarm_rate_inside_training_range": r[
-            "pure_false_alarm_rate_inside_training_range"
-        ],
+        "pure_false_alarm_rate": {n: m["false_alarm_rate"] for n, m in r["populations"].items()},
         "water_flagged": {w: m["flagged"] for w, m in r["water"].items()},
     }
     resolve(p["metrics"]).write_text(json.dumps(summary, indent=2) + "\n")
-    log.info("Pure-milk false alarms %.1f%%", 100 * r["pure_false_alarm_rate"])
+    log.info("Pure-milk false alarms: %s", summary["pure_false_alarm_rate"])
 
 
 if __name__ == "__main__":

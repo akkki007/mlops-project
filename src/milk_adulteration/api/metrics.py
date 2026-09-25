@@ -7,9 +7,12 @@ from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
 MAX_LABEL_LEN = 64
 
 
-def label(value: str | None) -> str:
-    """Bound label values supplied by clients."""
-    return (value or "unknown").strip()[:MAX_LABEL_LEN] or "unknown"
+def label(value: object) -> str:
+    """Bound label values supplied by clients. Missing values (None, NaN, blank) and
+    non-strings from CSV parsing become a string or "unknown" instead of failing."""
+    if value is None or (isinstance(value, float) and value != value):
+        return "unknown"
+    return str(value).strip()[:MAX_LABEL_LEN] or "unknown"
 
 
 class Metrics:

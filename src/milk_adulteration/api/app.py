@@ -32,6 +32,8 @@ from milk_adulteration.models.cascade import BANDS, Cascade
 log = logging.getLogger(__name__)
 
 MAX_BATCH_ROWS = 10_000
+# Read identifiers as text so CSV IDs like "007" keep their leading zeros.
+TEXT_COLUMNS = {"sample_id": str, "collection_point": str}
 BATCH_BODY_DOC = {
     "requestBody": {
         "required": True,
@@ -158,12 +160,12 @@ def create_app(model: Cascade | None = None, model_info: dict[str, Any] | None =
                     )
                 df = pd.DataFrame.from_records(records)
             elif ctype in ("text/csv", "application/csv"):
-                df = pd.read_csv(io.BytesIO(await request.body()))
+                df = pd.read_csv(io.BytesIO(await request.body()), dtype=TEXT_COLUMNS)
             elif ctype == "multipart/form-data":
                 upload = (await request.form()).get("file")
                 if upload is None or isinstance(upload, str):
                     raise HTTPException(422, "multipart upload needs a CSV in field 'file'")
-                df = pd.read_csv(io.BytesIO(await upload.read()))
+                df = pd.read_csv(io.BytesIO(await upload.read()), dtype=TEXT_COLUMNS)
             else:
                 raise HTTPException(415, "use application/json, text/csv or multipart/form-data")
         except (ValueError, pd.errors.ParserError, UnicodeDecodeError) as exc:

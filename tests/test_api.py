@@ -149,3 +149,15 @@ def test_metrics_exposed(client):
     # Unknown paths share one label value.
     client.get("/nope")
     assert 'path="unmatched"' in client.get("/metrics").text
+
+
+def test_batch_csv_keeps_text_ids_and_handles_blank_collection_point(client):
+    csv = (
+        "sample_id,collection_point,fat_pct,snf_pct,density,ph,freezing_point,conductivity\n"
+        "007,,3.4,8.8,1.030,6.67,-0.53,4.85\n"
+        "008,Farm Gate,3.4,8.8,1.030,6.67,-0.53,4.85\n"
+    )
+    r = client.post("/predict/batch", content=csv, headers={"content-type": "text/csv"})
+    assert r.status_code == 200, r.text
+    assert [x["sample_id"] for x in r.json()["results"]] == ["007", "008"]
+    assert 'collection_point="unknown"' in client.get("/metrics").text
