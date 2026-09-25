@@ -193,14 +193,16 @@ two files.
 
 ## 5. Test the model on real samples
 
-This is the most important step, and it needs no GPU.
+This is the most important step, and it needs no GPU. **[RUN_LOCALLY.md](RUN_LOCALLY.md)
+is the step-by-step version for a lab** (install on any laptop, CSV template, unit
+conversions, per-sample results). The short version:
 
 **What the CSV needs:** one row per sample with all six readings in these units:
 
 | Column | Unit | Allowed range |
 | --- | --- | --- |
 | `fat_pct` | % | 0–15 |
-| `snf_pct` | % | 0–15 |
+| `snf_pct` | % | 3–15 |
 | `density` | g/mL (specific gravity is fine) | 1.000–1.040 |
 | `ph` | pH | 5.5–8.5 |
 | `freezing_point` | °C (negative, about −0.52 for pure milk) | −1.0 to 0 |
@@ -215,10 +217,11 @@ column naming the adulterant (`Water`, `Starch`, `Urea`, `Detergent`,
 python -m milk_adulteration.models.evaluate_external real_samples.csv \
     --label is_adulterated --adulterant adulterant \
     --rename "Fat=fat_pct,SNF=snf_pct,Density=density,pH=ph,FP=freezing_point,EC=conductivity" \
-    --out reports/external_real.md
+    --out reports/external_real.md --predictions reports/external_real_predictions.csv
 ```
 
-It writes `reports/external_real.md` (and `.json`):
+It writes `reports/external_real.md` (and `.json`), and with `--predictions` a CSV
+with the model's answer for every sample. The report contains:
 
 - recall and precision with confidence intervals, for all adulterants and for
   detectable ones;

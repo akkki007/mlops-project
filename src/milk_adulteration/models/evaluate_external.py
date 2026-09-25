@@ -1,8 +1,13 @@
-"""Score the trained cascade on an external, labelled CSV (e.g. real lab samples).
+"""Score the trained cascade on a CSV of samples, e.g. real lab samples.
 
     python -m milk_adulteration.models.evaluate_external real_samples.csv \\
         --label is_adulterated --adulterant adulterant \\
-        --rename "Fat=fat_pct,SNF=snf_pct" --out reports/external.md
+        --rename "Fat=fat_pct,SNF=snf_pct" --out reports/external.md \\
+        --predictions reports/external_predictions.csv
+
+`--predictions` writes one row per sample with the model's answer (works without
+labels too). `--freezing-point-unit`, `--conductivity-unit` and `--density-unit`
+convert common instrument units to the ones the model expects.
 
 The CSV needs the six readings (renamed with --rename if its headers differ) and,
 for accuracy numbers, a 0/1 label column. An adulterant-name column is optional;
@@ -24,6 +29,7 @@ import pandas as pd
 
 from milk_adulteration.config import (
     ADULTERANT_CLASSES,
+    FEATURES,
     OTHER_CLASS,
     PURE_CLASS,
     STAGE2_CLASSES,
@@ -48,6 +54,47 @@ def normalise_adulterant(value: Any) -> str:
     by_lower.update({c: c for c in STAGE2_CLASSES})
     key = text.lower().replace("-", " ")
     return by_lower.get(key, by_lower.get(key.replace(" ", "_"), OTHER_CLASS))
+
+
+# ISO 5764 / IDF 108: freezing point in degrees Celsius from degrees Hortvet.
+HORTVET_TO_CELSIUS = 0.9658
+
+
+def apply_units(
+    df: pd.DataFrame,
+    freezing_point: str = "C",
+    conductivity: str = "mS/cm",
+    density: str = "g/mL",
+) -> pd.DataFrame:
+    """Convert readings to the model's units: °C, mS/cm and g/mL."""
+    df = df.copy()
+    if freezing_point.upper() == "H":
+        df["freezing_point"] = pd.to_numeric(df["freezing_point"], errors="coerce") * (
+            HORTVET_TO_CELSIUS
+        )
+    if conductivity.lower() in ("us/cm", "µs/cm"):
+        df["conductivity"] = pd.to_numeric(df["conductivity"], errors="coerce") / 1000
+    if density.upper() == "CLR":  # corrected lactometer reading, e.g. 28 -> 1.028
+        df["density"] = 1 + pd.to_numeric(df["density"], errors="coerce") / 1000
+    return df
+
+
+def predict_rows(model: Cascade, df: pd.DataFrame) -> pd.DataFrame:
+    """One output row per input row, in input order: the inputs unchanged (lab
+    labels included), then `status` (scored or rejected), the model's answer in
+    `pred_*` columns and any `reject_reason`."""
+    df = df.reset_index(drop=True)
+    valid, rejected = split_valid_readings(df)
+    pred = model.predict(valid) if len(valid) else pd.DataFrame(index=valid.index)
+    out = df.copy()
+    out["status"] = np.where(out.index.isin(valid.index), "scored", "rejected")
+    for col in ("is_adulterated", "risk_score", "band", "adulterant", "confidence"):
+        out[f"pred_{col}"] = pred[col] if col in pred else None
+    out["pred_unusual_readings"] = (
+        pred["unusual_readings"].map(", ".join) if "unusual_readings" in pred else None
+    )
+    out["reject_reason"] = rejected["reject_reason"] if len(rejected) else None
+    return out
 
 
 def parse_rename(spec: str | None) -> dict[str, str]:
@@ -177,12 +224,34 @@ def main() -> None:
     parser.add_argument("--rename", help="header mapping, e.g. 'Fat=fat_pct,SNF=snf_pct'")
     parser.add_argument("--model", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=Path("reports/external.md"))
+    parser.add_argument("--predictions", type=Path, help="write per-sample results to this CSV")
+    parser.add_argument(
+        "--freezing-point-unit", choices=["C", "H"], default="C", help="C = °C, H = °Hortvet"
+    )
+    parser.add_argument("--conductivity-unit", choices=["mS/cm", "uS/cm"], default="mS/cm")
+    parser.add_argument(
+        "--density-unit",
+        choices=["g/mL", "CLR"],
+        default="g/mL",
+        help="CLR = corrected lactometer reading (28 means 1.028)",
+    )
     args = parser.parse_args()
 
     params = load_params()
     model = Cascade.load(args.model or resolve(params["train"]["model"]))
-    df = pd.read_csv(args.csv).rename(columns=parse_rename(args.rename))
+    df = pd.read_csv(args.csv, dtype={"sample_id": str}).rename(columns=parse_rename(args.rename))
+    missing = [c for c in FEATURES if c not in df]
+    if missing:
+        raise SystemExit(
+            f"{args.csv} is missing columns {missing}. Found: {list(df.columns)}. "
+            "Use --rename 'YourName=model_name,...' to map headers."
+        )
+    df = apply_units(df, args.freezing_point_unit, args.conductivity_unit, args.density_unit)
     r = evaluate_external(model, df, args.label, args.adulterant)
+    if args.predictions:
+        args.predictions.parent.mkdir(parents=True, exist_ok=True)
+        predict_rows(model, df).to_csv(args.predictions, index=False)
+        print(f"Per-sample results: {args.predictions}")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render(r, str(args.csv), model))
     args.out.with_suffix(".json").write_text(json.dumps(r, indent=2, default=str) + "\n")

@@ -8,8 +8,9 @@ Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulter
 > physics stress test ([`reports/stress_test.md`](reports/stress_test.md)) found the
 > first model flagged 39% of pure cow milk across published normal ranges; training
 > now widens pure milk to those ranges, which brings that to 0.6% (buffalo milk: 25%).
-> See [GUIDE.md](GUIDE.md) for the details, how to test on real samples, and how to
-> train on a GPU (faster, not more accurate).
+> To score real samples on your own computer, follow [RUN_LOCALLY.md](RUN_LOCALLY.md).
+> [GUIDE.md](GUIDE.md) has the details and how to train on a GPU (faster, not more
+> accurate).
 
 ## Status
 

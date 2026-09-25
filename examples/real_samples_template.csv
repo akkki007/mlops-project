@@ -1,0 +1,4 @@
+sample_id,collection_point,milk_type,fat_pct,snf_pct,density,ph,freezing_point,conductivity,is_adulterated,adulterant
+EX-001,Village Collection Center,cow,3.8,8.6,1.029,6.68,-0.530,4.7,0,
+EX-002,Village Collection Center,cow,2.9,6.9,1.022,6.72,-0.425,3.9,1,Water
+EX-003,Processing Plant,buffalo,6.9,9.4,1.031,6.72,-0.545,4.2,0,
