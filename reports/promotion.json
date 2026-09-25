@@ -1,0 +1,13 @@
+{
+  "promoted": true,
+  "reason": "no regression against production on pr_auc and recall",
+  "candidate": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "pr_auc": 1.0,
+    "brier": 0.0,
+    "tp": 12,
+    "fp": 0,
+    "fn": 0
+  }
+}

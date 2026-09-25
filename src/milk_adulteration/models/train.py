@@ -32,7 +32,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.utils.class_weight import compute_sample_weight
 from xgboost import XGBClassifier
 
-from milk_adulteration.config import OTHER_CLASS, STAGE2_CLASSES, load_params, resolve
+from milk_adulteration.config import OTHER_CLASS, STAGE2_CLASSES, load_params, resolve, tracking_uri
 from milk_adulteration.data.augment import augment
 from milk_adulteration.evaluation import threshold_for_recall
 from milk_adulteration.features import feature_matrix
@@ -165,7 +165,7 @@ def main() -> None:
     train_aug["aug_combo"] = train_aug["aug_combo"].fillna("")
     folds = FoldData(train, aug_p, p["cv_folds"], seed)
 
-    mlflow.set_tracking_uri(p["mlflow"]["tracking_uri"])
+    mlflow.set_tracking_uri(tracking_uri(p))
     mlflow.set_experiment(p["mlflow"]["experiment"])
     with mlflow.start_run(run_name="train") as run:
         mlflow.set_tags({**data_version(split_dir), "git_commit": git_commit()})

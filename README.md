@@ -11,8 +11,8 @@ Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulter
 | 1 | Data in: download, EDA, Pandera schema, DVC | Done |
 | 2 | Baselines: FSSAI rules, logistic regression, Random Forest | Done |
 | 3 | Two-stage XGBoost, augmentation, calibration | Done: exit criterion met |
-| 4 | FastAPI service, Docker, GitHub Actions | Next |
-| 5 | React dashboard, PostgreSQL, Prometheus + Grafana | |
+| 4 | FastAPI service, Docker, GitHub Actions | Done |
+| 5 | React dashboard, PostgreSQL, Prometheus + Grafana | Next |
 | 6 | Validation on real data, SHAP report, write-up | |
 
 ## Quick start
@@ -20,10 +20,14 @@ Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulter
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
-dvc repro          # ingest -> validate -> eda -> split -> baselines -> augment -> train -> evaluate
+dvc repro          # ingest -> validate -> eda -> split -> baselines -> augment -> train -> evaluate -> promote
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # browse runs
 pytest -q
+uvicorn milk_adulteration.api.app:app --reload   # API on :8000, docs at /docs
 ```
+
+Install only what you need: `pip install -e .` (load and run the model),
+`.[serve]` (API), `.[train]` (pipeline), `.[dev]` (everything plus tests).
 
 ## Data pipeline
 
@@ -37,6 +41,7 @@ pytest -q
 | `augment` | `milk_adulteration.data.augment` | `data/processed/train_aug.csv`: every Stage 2 class grown to 300 rows, plus water+starch and water+urea rows |
 | `train` | `milk_adulteration.models.train` | `models/cascade.joblib`, `reports/train_cv.json`; Optuna trials as nested MLflow runs |
 | `evaluate` | `milk_adulteration.models.evaluate` | [`reports/model.md`](reports/model.md), `reports/model_metrics.json` |
+| `promote` | `milk_adulteration.models.promote` | Registers the model in MLflow; moves the `production` alias if it earns it. Writes `models/model_info.json` and [`reports/promotion.json`](reports/promotion.json) |
 
 The source is the CC0 [Indian Milk Adulteration Detection Dataset](https://github.com/ommadav/Indian-Milk-Adulteration-Detection-Dataset)
 (2,500 rows, **synthetic**). Only the six field-level readings are kept; the lab-only
@@ -115,3 +120,43 @@ model.predict(df)  # is_adulterated, risk_score, band, adulterant, confidence
 
 On all adulterants, including `other`, Stage 1 catches 16 of 19 with no false
 alarms. The Random Forest baseline needed 213 false alarms to catch all 19.
+
+## Prediction API (Week 4)
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /predict` | One sample → `is_adulterated`, `risk_score`, `band`, `adulterant`, `confidence`, `model_version`. Out-of-range readings get a 422 with the reason. |
+| `POST /predict/batch` | Up to 10,000 samples as JSON, a CSV body (`text/csv`) or a CSV upload (multipart field `file`). Per-row results plus a summary; invalid rows are returned as `rejected` with a reason, never scored. |
+| `GET /model/info` | Registry version, MLflow run ID, data hashes, threshold, test metrics |
+| `GET /health` | Liveness |
+| `GET /metrics` | Prometheus: request counts and latency by route, predictions by band, adulterant and collection point, rejected rows, risk-score histogram |
+
+```bash
+curl -s localhost:8000/predict -H 'content-type: application/json' -d '{
+  "sample_id": "S-1", "collection_point": "Farm Gate", "fat_pct": 2.2, "snf_pct": 6.9,
+  "density": 1.019, "ph": 6.9, "freezing_point": -0.46, "conductivity": 4.2}'
+curl -s localhost:8000/predict/batch -F file=@samples.csv
+```
+
+**Docker.** Build after `dvc repro`, because the image bundles `models/cascade.joblib`:
+
+```bash
+docker compose up --build        # or: docker build -t milk-adulteration-api .
+python scripts/smoke_test.py     # checks every endpoint against a running API
+```
+
+The image runs as a non-root user with a health check. It uses `xgboost-cpu`
+(same library, without the ~300 MB CUDA dependency), with runtime pins in
+`requirements/serve.txt` that must match the training versions because the
+model is a pickle. Measured in the container: `/predict` p95 ≈ 17 ms; a
+10,000-row CSV batch takes ≈ 1.1 s.
+
+**Promotion.** A model gets the MLflow `production` alias only if, on detectable
+test adulterants, it meets recall ≥ 0.95 and precision ≥ 0.80, and is no worse
+than the current production model on PR-AUC and recall. Ties promote, so a
+retrain on new data can replace the old model. Set `MLFLOW_TRACKING_URI` to use a
+shared MLflow server instead of the local `mlflow.db`.
+
+**CI** (`.github/workflows/ci.yml`): lint and tests (including schema and API
+tests) → full `dvc repro` → build the image, smoke-test the container → push to
+`ghcr.io/<owner>/<repo>/api` from `main` or a `v*` tag, only if promoted.

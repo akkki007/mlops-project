@@ -1,0 +1,8 @@
+# Local stack. Week 5 adds PostgreSQL, Prometheus and Grafana.
+services:
+  api:
+    build: .
+    image: milk-adulteration-api:local
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

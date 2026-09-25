@@ -14,12 +14,13 @@ import pandera.pandas as pa
 
 from milk_adulteration.config import (
     ADULTERANT_CLASSES,
+    FEATURES,
     PURE_CLASS,
     SOURCE_COLUMNS,
     load_params,
     resolve,
 )
-from milk_adulteration.data.schema import CLEAN_SCHEMA
+from milk_adulteration.data.schema import CLEAN_SCHEMA, FIELD_SCHEMA
 
 log = logging.getLogger(__name__)
 
@@ -42,10 +43,12 @@ def prepare(raw: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def split_valid(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def split_valid(
+    df: pd.DataFrame, schema: pa.DataFrameSchema = CLEAN_SCHEMA
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Return (valid rows, rejected rows with a `reject_reason` column)."""
     try:
-        return CLEAN_SCHEMA.validate(df, lazy=True), df.iloc[0:0].assign(reject_reason=[])
+        return schema.validate(df, lazy=True), df.iloc[0:0].assign(reject_reason=[])
     except pa.errors.SchemaErrors as exc:
         cases = exc.failure_cases
         row_cases = cases[cases["index"].notna()]
@@ -63,8 +66,30 @@ def split_valid(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         reasons.index = reasons.index.astype(int)
         bad = df.index.isin(reasons.index)
         rejected = df[bad].assign(reject_reason=reasons)
-        valid = CLEAN_SCHEMA.validate(df[~bad])
+        valid = schema.validate(df[~bad])
         return valid, rejected
+
+
+def split_valid_readings(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Validate incoming readings (API, CSV batches) against `FIELD_SCHEMA`.
+
+    Non-numeric values would make Pandera fail the whole column, so they are
+    turned into row-level rejections first.
+    """
+    missing = [c for c in FEATURES if c not in df.columns]
+    if missing:
+        raise KeyError(f"missing columns: {missing}")
+    df = df.copy()
+    reasons: dict[int, list[str]] = {}
+    for col in FEATURES:
+        num = pd.to_numeric(df[col], errors="coerce")
+        for i in df.index[num.isna() & df[col].notna()]:
+            reasons.setdefault(i, []).append(f"{col}: not a number (got {df.at[i, col]!r})")
+        df[col] = num.astype(float)
+    bad = df.index.isin(list(reasons))
+    not_numeric = df[bad].assign(reject_reason=["; ".join(reasons[i]) for i in df.index[bad]])
+    valid, rejected = split_valid(df[~bad], FIELD_SCHEMA)
+    return valid, pd.concat([rejected, not_numeric]).sort_index()
 
 
 def main() -> None:

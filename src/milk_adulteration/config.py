@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -68,3 +69,8 @@ def resolve(path: str | Path) -> Path:
     """Resolve a params path relative to the project root."""
     p = Path(path)
     return p if p.is_absolute() else PROJECT_ROOT / p
+
+
+def tracking_uri(stage_params: dict[str, Any]) -> str:
+    """MLflow tracking URI: `MLFLOW_TRACKING_URI` if set (shared server), else params."""
+    return os.environ.get("MLFLOW_TRACKING_URI") or stage_params["mlflow"]["tracking_uri"]

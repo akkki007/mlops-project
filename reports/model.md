@@ -111,4 +111,4 @@ augmentation; the Week 2 Random Forest reached Stage 2 CV macro-F1
 ## Latency
 
 Single-sample `Cascade.predict`, including Pandera validation: p50
-9.5 ms, p95 14.3 ms (API target: p95 < 100 ms).
+9.0 ms, p95 12.8 ms (API target: p95 < 100 ms).

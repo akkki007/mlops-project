@@ -30,7 +30,7 @@ from sklearn.model_selection import RepeatedStratifiedKFold, cross_val_predict
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from milk_adulteration.config import OTHER_CLASS, STAGE2_CLASSES, load_params, resolve
+from milk_adulteration.config import OTHER_CLASS, STAGE2_CLASSES, load_params, resolve, tracking_uri
 from milk_adulteration.data.split import SPLITS
 from milk_adulteration.evaluation import (
     binary_metrics,
@@ -78,10 +78,15 @@ def data_version(split_dir: Path) -> dict[str, str]:
 
 
 def git_commit() -> str:
+    """HEAD commit, suffixed `-dirty` when tracked files have uncommitted changes."""
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        dirty = subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"], text=True
+        ).strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
+    return f"{head}-dirty" if dirty else head
 
 
 def evaluate_stage1(
@@ -306,7 +311,7 @@ def main() -> None:
     summary = summarise(stage1, stage2)
 
     if not args.no_mlflow:
-        mlflow.set_tracking_uri(p["mlflow"]["tracking_uri"])
+        mlflow.set_tracking_uri(tracking_uri(p))
         mlflow.set_experiment(p["mlflow"]["experiment"])
         tags = {**data_version(split_dir), "git_commit": git_commit()}
         example = feature_matrix(splits["train"], derived=True)

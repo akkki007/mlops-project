@@ -29,16 +29,16 @@ stages:
       size: 16599475
     - path: src/milk_adulteration/config.py
       hash: md5
-      md5: d304e0b5a5aadd83b9439b7e18423207
-      size: 1951
+      md5: 36f36d13b4625ab80ae648ab3d925ea2
+      size: 2199
     - path: src/milk_adulteration/data/schema.py
       hash: md5
       md5: 3206f6b9cc4f4e92fea43d7a1d5b822f
       size: 1949
     - path: src/milk_adulteration/data/validate.py
       hash: md5
-      md5: bf5474eccab445d09dbc5268adb126d9
-      size: 2995
+      md5: 54ce220571a678dfb8c6e85e2c58fceb
+      size: 4060
     params:
       params.yaml:
         validate:
@@ -137,8 +137,8 @@ stages:
       size: 1200
     - path: src/milk_adulteration/models/baselines.py
       hash: md5
-      md5: bed8ee2dd4e400855bd347f3fea330b6
-      size: 13020
+      md5: 355e45d1d2b3dc94932d361ed8e688c2
+      size: 13293
     - path: src/milk_adulteration/models/rules.py
       hash: md5
       md5: 9b94baccfb9377b25274623a689887ba
@@ -236,8 +236,8 @@ stages:
       size: 3055
     - path: src/milk_adulteration/models/train.py
       hash: md5
-      md5: 684192170aa7bc643b4343cf7b62e9d5
-      size: 10727
+      md5: 2ed665d79d0be951f80a48ffc444670a
+      size: 10729
     params:
       params.yaml:
         augment:
@@ -270,8 +270,8 @@ stages:
     outs:
     - path: models/cascade.joblib
       hash: md5
-      md5: 549978af8e3cc9a6d007131baad03981
-      size: 2555460
+      md5: b5fe5e132e7cdcafe6237b0f3425aeea
+      size: 2555466
     - path: reports/train_cv.json
       hash: md5
       md5: 384f4592da71995187107008ae428e91
@@ -285,8 +285,8 @@ stages:
       size: 40005
     - path: models/cascade.joblib
       hash: md5
-      md5: 549978af8e3cc9a6d007131baad03981
-      size: 2555460
+      md5: b5fe5e132e7cdcafe6237b0f3425aeea
+      size: 2555466
     - path: reports/baselines.json
       hash: md5
       md5: e60b30a7c4f83e1056c64a26c81a0061
@@ -301,8 +301,8 @@ stages:
       size: 3055
     - path: src/milk_adulteration/models/evaluate.py
       hash: md5
-      md5: 384ceae48bf40a204cea4acd90425654
-      size: 11723
+      md5: 5e3d23e3462bac79422d34ff847af7af
+      size: 11754
     params:
       params.yaml:
         evaluate:
@@ -312,9 +312,42 @@ stages:
     outs:
     - path: reports/model.md
       hash: md5
-      md5: 6cc414df47febe0e2245b029765a6189
+      md5: 80c07e2cacd1085edac7733dbfb7915c
       size: 4203
     - path: reports/model_metrics.json
       hash: md5
       md5: 6a8fd425df368201f1328c20671cb662
       size: 1266
+  promote:
+    cmd: python -m milk_adulteration.models.promote
+    deps:
+    - path: models/cascade.joblib
+      hash: md5
+      md5: b5fe5e132e7cdcafe6237b0f3425aeea
+      size: 2555466
+    - path: reports/model_metrics.json
+      hash: md5
+      md5: 6a8fd425df368201f1328c20671cb662
+      size: 1266
+    - path: src/milk_adulteration/models/promote.py
+      hash: md5
+      md5: 1e127d3503af1707a3c2bdc48c25be18
+      size: 5083
+    params:
+      params.yaml:
+        promote:
+          registered_model: milk-adulteration-cascade
+          alias: production
+          min_recall: 0.95
+          min_precision: 0.8
+          model_info: models/model_info.json
+          report: reports/promotion.json
+    outs:
+    - path: models/model_info.json
+      hash: md5
+      md5: f1c0540f8924bd563c206eb0db739565
+      size: 883
+    - path: reports/promotion.json
+      hash: md5
+      md5: ed976b1ce044812020184de4bff396ea
+      size: 231

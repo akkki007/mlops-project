@@ -72,3 +72,13 @@ evaluate:
   bootstrap_rounds: 1000
   report: reports/model.md
   metrics: reports/model_metrics.json
+
+promote:
+  registered_model: milk-adulteration-cascade
+  alias: production
+  # Hard gates on test (detectable adulterants), then no regression against the
+  # current production model on test PR-AUC and recall.
+  min_recall: 0.95
+  min_precision: 0.80
+  model_info: models/model_info.json
+  report: reports/promotion.json

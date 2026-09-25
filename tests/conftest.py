@@ -69,3 +69,47 @@ def synthetic_clean() -> pd.DataFrame:
     for cls, (col, delta) in shifts.items():
         df.loc[df["adulterant"] == cls, col] += delta
     return df
+
+
+AUG = {
+    "seed": 0,
+    "target_per_class": 30,
+    "dose_range": [0.5, 1.5],
+    "combos": [["water", "starch"]],
+    "rows_per_combo": 10,
+}
+XGB = {"n_estimators": 30, "max_depth": 3, "learning_rate": 0.3}
+
+
+@pytest.fixture(scope="session")
+def trained(synthetic_clean):
+    """A small cascade trained on `synthetic_clean`: (model, splits, folds)."""
+    from sklearn.isotonic import IsotonicRegression
+
+    from milk_adulteration.config import STAGE2_CLASSES
+    from milk_adulteration.data.augment import augment
+    from milk_adulteration.data.split import split
+    from milk_adulteration.features import feature_matrix
+    from milk_adulteration.models.cascade import Cascade
+    from milk_adulteration.models.train import (
+        FoldData,
+        fit_stage1,
+        fit_stage2,
+        stage1_rows,
+        stage2_rows,
+    )
+
+    parts = split(synthetic_clean, 0.2, 0.2, seed=0)
+    folds = FoldData(parts["train"], AUG, k=3, seed=0)
+    y, s, _ = folds.oof_stage1(XGB, exclude_other=True, seed=0)
+    train_aug = augment(parts["train"], AUG)
+    model = Cascade(
+        stage1=fit_stage1(stage1_rows(train_aug, True), XGB, 0),
+        calibrator=IsotonicRegression(y_min=0, y_max=1, out_of_bounds="clip").fit(s, y),
+        threshold=0.5,
+        reject_risk=0.5,
+        stage2=fit_stage2(stage2_rows(train_aug), XGB, 0),
+        classes=list(STAGE2_CLASSES),
+        features=list(feature_matrix(parts["train"].head(1)).columns),
+    )
+    return model, parts, folds

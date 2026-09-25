@@ -4,8 +4,12 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
+    # Lint, unit tests, Pandera schema tests and API tests (on a small model).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,9 +22,9 @@ jobs:
       - run: ruff format --check .
       - run: pytest -q
 
-  data-pipeline:
-    # Rebuilds the whole pipeline (data, baselines, cascade training and
-    # evaluation) from the checksum-pinned upstream CSV.
+  pipeline:
+    # Rebuilds everything from the checksum-pinned upstream CSV: data, baselines,
+    # cascade training, evaluation and the promotion decision.
     runs-on: ubuntu-latest
     needs: test
     timeout-minutes: 30
@@ -32,3 +36,49 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - run: dvc repro --force
+      - name: Show promotion decision
+        run: cat reports/promotion.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model
+          path: |
+            models/cascade.joblib
+            models/model_info.json
+            reports/
+          retention-days: 14
+
+  docker:
+    # Builds the API image with the model just trained, smoke-tests the running
+    # container, and pushes it to GHCR from `main` or a `v*` tag when promoted.
+    runs-on: ubuntu-latest
+    needs: pipeline
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: model
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build image
+        run: docker build -t milk-adulteration-api:ci .
+      - name: Smoke test
+        run: |
+          docker run -d --name api -p 8000:8000 milk-adulteration-api:ci
+          python scripts/smoke_test.py http://127.0.0.1:8000 || (docker logs api; exit 1)
+      - name: Push to GHCR
+        if: >-
+          github.event_name == 'push' &&
+          (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        run: |
+          if [ "$(jq -r .promoted reports/promotion.json)" != "true" ]; then
+            echo "Model was not promoted; not pushing."; exit 0
+          fi
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/api"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag milk-adulteration-api:ci "$image:sha-${GITHUB_SHA::7}"
+          docker tag milk-adulteration-api:ci "$image:${GITHUB_REF_NAME//\//-}"
+          docker push --all-tags "$image"

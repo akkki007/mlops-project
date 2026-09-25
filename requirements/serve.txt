@@ -1,0 +1,16 @@
+# Runtime pins for the API image. Model files are pickles, so numpy,
+# scikit-learn and xgboost must match the versions the model was trained with.
+# xgboost-cpu is the same library without the ~300 MB CUDA/NCCL dependency.
+fastapi==0.141.1
+joblib==1.6.0
+numpy==2.4.6
+pandas==3.0.6
+pandera==0.33.1
+prometheus-client==0.26.0
+pydantic==2.13.5
+python-multipart==0.0.32
+pyyaml==6.0.3
+scikit-learn==1.9.1
+scipy==1.17.1
+uvicorn[standard]==0.53.0
+xgboost-cpu==3.2.0

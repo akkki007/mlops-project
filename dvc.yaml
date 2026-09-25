@@ -113,3 +113,18 @@ stages:
     metrics:
       - reports/model_metrics.json:
           cache: false
+
+  promote:
+    cmd: python -m milk_adulteration.models.promote
+    deps:
+      - models/cascade.joblib
+      - reports/model_metrics.json
+      - src/milk_adulteration/models/promote.py
+    params:
+      - promote
+    outs:
+      - models/model_info.json:
+          cache: false
+    metrics:
+      - reports/promotion.json:
+          cache: false

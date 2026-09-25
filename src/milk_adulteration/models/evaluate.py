@@ -18,7 +18,14 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import brier_score_loss
 
-from milk_adulteration.config import OTHER_CLASS, PURE_CLASS, STAGE2_CLASSES, load_params, resolve
+from milk_adulteration.config import (
+    OTHER_CLASS,
+    PURE_CLASS,
+    STAGE2_CLASSES,
+    load_params,
+    resolve,
+    tracking_uri,
+)
 from milk_adulteration.evaluation import binary_metrics, bootstrap_ci, multiclass_metrics
 from milk_adulteration.models.cascade import BANDS, Cascade
 
@@ -281,7 +288,7 @@ def main() -> None:
     }
     resolve(p["metrics"]).write_text(json.dumps(metrics, indent=2) + "\n")
 
-    mlflow.set_tracking_uri(tp["mlflow"]["tracking_uri"])
+    mlflow.set_tracking_uri(tracking_uri(tp))
     with mlflow.start_run(run_id=model.metadata["mlflow_run_id"]):
         for view, m in r["stage1"].items():
             mlflow.log_metrics(
