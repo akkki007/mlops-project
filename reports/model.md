@@ -11,27 +11,27 @@ detectable adulterants): MET.**
 | Stage 1 recall, detectable (test) | 1.000 | ≥ 0.95 | pass |
 | Stage 1 precision, detectable (test) | 1.000 | ≥ 0.80 | pass |
 | Stage 1 PR-AUC, detectable (test) | 1.000 | ≥ 0.90 | pass |
-| Stage 2 macro-F1 (test) | 0.896 | ≥ 0.80 | pass |
-| Stage 2 macro-F1 (train CV) | 0.818 | ≥ 0.80 | pass |
+| Stage 2 macro-F1 (test) | 0.621 | ≥ 0.80 | **miss** |
+| Stage 2 macro-F1 (train CV) | 0.801 | ≥ 0.80 | pass |
 
 "Detectable" excludes the `other` class (formalin, H₂O₂, vegetable oil, melamine),
 as agreed for v1: those need a confirmatory lab test.
 
 ## Stage 1: pure vs adulterated (test, 95% bootstrap CI)
 
-Threshold 0.5464 on the raw Stage 1 score, chosen on validation.
+Threshold 0.5408 on the raw Stage 1 score, chosen on validation.
 
 | Model | Recall | Precision | PR-AUC | TP | FP | FN |
 |---|---|---|---|---|---|---|
 | XGBoost cascade, detectable | 1.000 (1.00–1.00) | 1.000 (1.00–1.00) | 1.000 (1.00–1.00) | 12 | 0 | 0 |
-| XGBoost cascade, all | 0.842 (0.67–1.00) | 1.000 (1.00–1.00) | 0.912 (0.76–1.00) | 16 | 0 | 3 |
+| XGBoost cascade, all | 0.842 (0.67–1.00) | 1.000 (1.00–1.00) | 0.933 (0.79–1.00) | 16 | 0 | 3 |
 | Baseline RF + derived, detectable | 1.000 (1.00–1.00) | 1.000 (1.00–1.00) | 1.000 (1.00–1.00) | 12 | 0 | 0 |
 | Baseline RF + derived, all | 1.000 (1.00–1.00) | 0.082 (0.05–0.12) | 0.932 (0.80–1.00) | 19 | 213 | 0 |
 
 Stage 1 never trained on `other`, yet flags 4 of 7
 `other` test samples; 0 pure samples are flagged.
 
-**Calibration.** Brier score 0.0080 (all test rows). Mean risk
+**Calibration.** Brier score 0.0076 (all test rows). Mean risk
 0.043 against an actual rate of 0.051.
 Because training CV separates the classes almost perfectly, isotonic calibration is
 close to a 0/1 step, so the risk score is near 0 or 1 for most samples. Expect a
@@ -46,31 +46,31 @@ smoother score on real data.
 
 ## Stage 2: which adulterant (adulterated test rows)
 
-Test macro-F1 **0.896** over 19 samples;
-train CV macro-F1 0.818. Classes with one test sample swing
+Test macro-F1 **0.621** over 19 samples;
+train CV macro-F1 0.801. Classes with one test sample swing
 the test figure by about 0.1, so read it together with the CV number.
 
 | Class | Test F1 |
 |---|---|
-| detergent | 1.00 |
+| detergent | 0.00 |
 | glucose | 1.00 |
-| other | 0.83 |
-| skimmed_milk_powder | 0.67 |
-| sodium_bicarbonate | 1.00 |
-| starch | 0.67 |
-| urea | 1.00 |
+| other | 0.60 |
+| skimmed_milk_powder | 0.57 |
+| sodium_bicarbonate | 0.80 |
+| starch | 0.33 |
+| urea | 0.67 |
 | water | 1.00 |
 
 Confusion matrix (rows = true, columns = predicted, order as rows):
 
 | True \ Pred | detergent | glucose | other | skimmed_milk_powder | sodium_bicarbonate | starch | urea | water |
 |---|---|---|---|---|---|---|---|---|
-| detergent | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| detergent | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
 | glucose | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
-| other | 0 | 0 | 5 | 0 | 0 | 2 | 0 | 0 |
-| skimmed_milk_powder | 0 | 0 | 0 | 1 | 0 | 1 | 0 | 0 |
+| other | 0 | 0 | 3 | 1 | 0 | 2 | 1 | 0 |
+| skimmed_milk_powder | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | sodium_bicarbonate | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0 |
-| starch | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 |
+| starch | 0 | 0 | 0 | 2 | 0 | 1 | 0 | 0 |
 | urea | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
 | water | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 |
 
@@ -78,37 +78,37 @@ Confusion matrix (rows = true, columns = predicted, order as rows):
 
 | View | Adulterated | Caught | Caught and named correctly |
 |---|---|---|---|
-| All | 19 | 16 | 13 |
-| Detectable | 12 | 12 | 11 |
+| All | 19 | 16 | 9 |
+| Detectable | 12 | 12 | 9 |
 
 ## Augmentation: does it help? (train CV, same tuned params)
 
 | Metric | With augmentation | Without |
 |---|---|---|
-| Stage 1 PR-AUC (detectable) | 1.000 | 0.971 |
-| Stage 2 macro-F1 | 0.818 | 0.376 |
+| Stage 1 PR-AUC (detectable) | 1.000 | 0.959 |
+| Stage 2 macro-F1 | 0.801 | 0.735 |
 
 Augmented rows come only from each fold's training part and are never scored.
 The "without" column reuses parameters tuned with augmentation, which flatters
 augmentation; the Week 2 Random Forest reached Stage 2 CV macro-F1
 0.768 without it; the cascade's Stage 2 (XGBoost with augmentation) is
-+0.05 above that.
++0.03 above that.
 
 ## Feature importance (share of total gain)
 
 | Feature | Stage 1 | Stage 2 |
 |---|---|---|
-| fat_pct | 0.032 | 0.055 |
-| snf_pct | 0.078 | 0.082 |
-| density | 0.105 | 0.061 |
-| ph | 0.220 | 0.138 |
-| freezing_point | 0.150 | 0.223 |
-| conductivity | 0.183 | 0.086 |
-| fat_snf_ratio | 0.028 | 0.045 |
-| density_residual | 0.084 | 0.100 |
-| fp_deviation | 0.120 | 0.210 |
+| fat_pct | 0.048 | 0.043 |
+| snf_pct | 0.154 | 0.126 |
+| density | 0.072 | 0.086 |
+| ph | 0.416 | 0.219 |
+| freezing_point | 0.096 | 0.204 |
+| conductivity | 0.070 | 0.076 |
+| fat_snf_ratio | 0.049 | 0.040 |
+| density_residual | 0.061 | 0.061 |
+| fp_deviation | 0.034 | 0.145 |
 
 ## Latency
 
 Single-sample `Cascade.predict`, including Pandera validation: p50
-9.3 ms, p95 14.0 ms (API target: p95 < 100 ms).
+10.5 ms, p95 11.8 ms (API target: p95 < 100 ms).

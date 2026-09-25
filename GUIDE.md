@@ -13,7 +13,7 @@ without an NVIDIA GPU. Read the first section before spending GPU time.
 | --- | --- |
 | Stage 1 recall / precision, detectable adulterants | 1.00 / 1.00 (12 of 12 caught, 0 false alarms) |
 | Stage 1 recall, all adulterants | 0.84 (16 of 19; formalin and H₂O₂ look like pure milk) |
-| Stage 2 macro-F1 (which adulterant) | 0.90 on test, 0.82 in cross-validation |
+| Stage 2 macro-F1 (which adulterant) | 0.62 on test (19 samples), 0.80 in tuning CV, about 0.77 across CV seeds |
 
 Treat these as "the pipeline works", not "the model works on milk":
 
@@ -24,25 +24,47 @@ Treat these as "the pipeline works", not "the model works on milk":
 - Augmentation copies the adulterant patterns of the synthetic generator. If real
   adulterated milk behaves differently, the model has never seen it.
 
-### A physics stress test already shows a real-world problem
+### A physics stress test found a real-world problem, now partly fixed
 
 No real labelled samples with all six readings were reachable: the Kaggle
 Lactoscanner data needs a login, the MADS repo doesn't ship its CSV, and the other
 public set is synthetic. So [`reports/stress_test.md`](reports/stress_test.md)
 (`dvc repro stress_test`) probes the model with *generated* samples based on dairy
-physics instead. The results:
+physics instead.
 
-- **Pure milk across published normal ranges is flagged 39% of the time.** Within
-  the synthetic data's narrower pure-milk ranges, the rate is 0%.
-- **The cause is freezing point.** Synthetic pure milk never freezes below
-  −0.540 °C, so the model flags every sample colder than about −0.540 °C.
-  Real pure milk often reaches −0.550 °C, and buffalo milk (common in India) is
-  often colder still. Conductivity above about 5.3 mS/cm adds some false alarms.
-- **Water added by the mixing law is caught from 5% up** (100% flagged, and named
-  "water" 88–100% of the time). At 3%, 81% is flagged.
+**What it found.** The first model flagged **39% of pure cow milk** and **83% of
+pure buffalo milk** spread across published normal ranges. Synthetic pure milk never
+freezes below −0.540 °C, so the model flagged anything colder, and real milk often
+is colder.
 
-**Expect many false alarms on real milk, especially buffalo milk, until the model
-is retrained on real pure samples.** Treat flags as "retest", not "reject".
+**The fix.** Training now adds 2,000 pure rows stretched onto typical published
+cow and buffalo ranges (`augment.widen_pure` in `params.yaml`), and the synthetic
+adulterated rows are built on those wider bases too.
+
+| Stress test (generated samples) | Before | After |
+|---|---|---|
+| Pure cow milk flagged | 38.7% | 0.6% |
+| Pure buffalo milk flagged | 83% | 25% (about 3% when fat ≥ 6%) |
+| 3% / 5% added water flagged | 81% / 100% | 40% / 73% |
+| 10% added water or more flagged | 100% | 100% |
+| Synthetic test, detectable adulterants | 12/12, 0 false alarms | unchanged |
+
+Read these carefully:
+
+- **Buffalo milk with low fat and high SNF** (for example 5% fat, 9.8% SNF) is still
+  often flagged. Its readings look like starch or milk powder, which raise SNF with
+  fat unchanged. Without knowing whether the milk is cow or buffalo, the six readings
+  can't tell them apart. A milk-type input would fix this; it's not in v1.
+- **Very light watering (under 5%) is caught less often.** Wider pure-milk ranges
+  overlap with lightly watered milk. That's the price of fewer false alarms.
+- **The widening and the stress test use similar published ranges,** so the
+  "after" column shows the fix took effect. It is not proof of accuracy on real milk.
+- The ranges in `params.yaml` are approximate literature values. **Replace them
+  with your own lab's pure-milk data** when you have it.
+
+Readings outside anything the model saw in training (for example SNF below 4.9%)
+are never accepted. They come back as `retest` with `unusual_readings` listing them,
+because a tree model can't extrapolate.
 
 The only way to know how accurate the model is on real milk is to score it on real,
 lab-confirmed samples. Section 5 shows how.

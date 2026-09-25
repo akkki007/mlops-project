@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import logging
 
+import numpy as np
 import pandas as pd
 import pandera.pandas as pa
 
@@ -82,7 +83,9 @@ def split_valid_readings(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     df = df.copy()
     reasons: dict[int, list[str]] = {}
     for col in FEATURES:
-        num = pd.to_numeric(df[col], errors="coerce")
+        # JSON true/false would otherwise pass as 1.0/0.0.
+        is_bool = df[col].map(lambda v: isinstance(v, (bool, np.bool_)))
+        num = pd.to_numeric(df[col].mask(is_bool), errors="coerce")
         for i in df.index[num.isna() & df[col].notna()]:
             reasons.setdefault(i, []).append(f"{col}: not a number (got {df.at[i, col]!r})")
         df[col] = num.astype(float)

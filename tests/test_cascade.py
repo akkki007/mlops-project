@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.isotonic import IsotonicRegression
 
-from milk_adulteration.config import STAGE2_CLASSES
+from milk_adulteration.config import FEATURES, STAGE2_CLASSES
 from milk_adulteration.evaluation import threshold_for_recall
-from milk_adulteration.models.cascade import Cascade
+from milk_adulteration.models.cascade import Cascade, raw_score_at_risk
 from milk_adulteration.models.evaluate import evaluate, exit_criteria, render
 from milk_adulteration.models.train import stage1_rows, stage2_rows
 
@@ -28,10 +29,18 @@ def test_folds_never_score_synthetic_rows(trained):
 def test_predict_output(trained):
     model, parts, _ = trained
     out = model.predict(parts["test"])
-    assert list(out.columns) == ["is_adulterated", "risk_score", "band", "adulterant", "confidence"]
+    assert list(out.columns) == [
+        "is_adulterated",
+        "risk_score",
+        "band",
+        "adulterant",
+        "confidence",
+        "unusual_readings",
+    ]
     assert out["risk_score"].between(0, 1).all()
     flagged = out["is_adulterated"]
-    assert (out.loc[~flagged, "band"] == "accept").all()
+    usual = out["unusual_readings"].map(len) == 0
+    assert (out.loc[~flagged & usual, "band"] == "accept").all()
     assert set(out.loc[flagged, "band"]) <= {"retest", "reject"}
     assert out.loc[flagged, "adulterant"].isin(STAGE2_CLASSES).all()
     assert out.loc[~flagged, "adulterant"].isna().all()
@@ -46,8 +55,49 @@ def test_predict_rejects_invalid_readings(trained):
 
 def test_band_logic(trained):
     model, _, _ = trained
-    bands = model.band(np.array([False, True, True]), np.array([0.9, 0.2, 0.7]))
-    assert bands.tolist() == ["accept", "retest", "reject"]
+    bands = model.band(
+        np.array([False, True, True, False]),
+        np.array([0.1, 0.2, 0.7, 0.1]),
+        np.array([False, False, False, True]),
+    )
+    assert bands.tolist() == ["accept", "retest", "reject", "retest"]
+
+
+def test_no_sample_is_accepted_with_high_risk(trained):
+    """Regression: the flag threshold and the calibrator disagreed, so samples came
+    back "accept" with risk 1.0. Blend pure and adulterated rows to probe the gap."""
+    model, parts, _ = trained
+    test = parts["test"]
+    pure = test[test["is_adulterated"] == 0][FEATURES].to_numpy()
+    bad = test[test["is_adulterated"] == 1][FEATURES].to_numpy()
+    rng = np.random.default_rng(0)
+    w = rng.uniform(0, 1, (4000, 1))
+    mix = (
+        w * pure[rng.integers(0, len(pure), 4000)] + (1 - w) * bad[rng.integers(0, len(bad), 4000)]
+    )
+    out = model.predict(pd.DataFrame(mix, columns=FEATURES))
+    accepted = out[out["band"] == "accept"]
+    assert (accepted["risk_score"] < model.reject_risk).all()
+    assert not (out["is_adulterated"] & out["adulterant"].isna()).any()
+
+
+def test_raw_score_at_risk():
+    cal = IsotonicRegression(y_min=0, y_max=1, out_of_bounds="clip").fit(
+        [0.1, 0.2, 0.3, 0.4], [0, 0, 1, 1]
+    )
+    t = raw_score_at_risk(cal, 0.5)
+    assert t == pytest.approx(0.25, abs=1e-6)
+    assert cal.predict([t])[0] >= 0.5 > cal.predict([t - 1e-4])[0]
+    assert raw_score_at_risk(cal, 1.5) == float("inf")
+
+
+def test_unusual_readings_are_retested_not_accepted(trained):
+    model, parts, _ = trained
+    row = parts["test"][parts["test"]["is_adulterated"] == 0].head(1)
+    lo = model.seen_ranges["snf_pct"][0]
+    out = model.predict(row.assign(snf_pct=max(lo - 1.0, 3.0))).iloc[0]
+    assert out["unusual_readings"] == ["snf_pct"]
+    assert out["band"] in ("retest", "reject")
 
 
 def test_save_load_roundtrip(trained, tmp_path):

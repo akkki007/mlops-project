@@ -1,11 +1,11 @@
 {
-  "threshold": 0.546407163143158,
+  "threshold": 0.5408180356025696,
   "stage1": {
     "all": {
       "recall": 0.8421052631578947,
       "precision": 1.0,
-      "pr_auc": 0.9123781126069455,
-      "brier": 0.00800000037997961,
+      "pr_auc": 0.9332492189377551,
+      "brier": 0.007632916327565908,
       "tp": 16,
       "fp": 0,
       "fn": 3
@@ -20,36 +20,36 @@
       "fn": 0
     }
   },
-  "stage2_macro_f1": 0.8958333333333333,
+  "stage2_macro_f1": 0.6214285714285714,
   "stage2_per_class_f1": {
-    "detergent": 1.0,
+    "detergent": 0.0,
     "glucose": 1.0,
-    "other": 0.8333333333333334,
-    "skimmed_milk_powder": 0.6666666666666666,
-    "sodium_bicarbonate": 1.0,
-    "starch": 0.6666666666666666,
-    "urea": 1.0,
+    "other": 0.6,
+    "skimmed_milk_powder": 0.5714285714285714,
+    "sodium_bicarbonate": 0.8,
+    "starch": 0.3333333333333333,
+    "urea": 0.6666666666666666,
     "water": 1.0
   },
   "end_to_end": {
     "all": {
       "positives": 19,
       "caught": 16,
-      "caught_and_named": 13,
-      "caught_and_named_rate": 0.6842105263157895
+      "caught_and_named": 9,
+      "caught_and_named_rate": 0.47368421052631576
     },
     "detectable": {
       "positives": 12,
       "caught": 12,
-      "caught_and_named": 11,
-      "caught_and_named_rate": 0.9166666666666666
+      "caught_and_named": 9,
+      "caught_and_named_rate": 0.75
     }
   },
   "exit_criteria": {
     "Stage 1 recall, detectable (test)": true,
     "Stage 1 precision, detectable (test)": true,
     "Stage 1 PR-AUC, detectable (test)": true,
-    "Stage 2 macro-F1 (test)": true,
+    "Stage 2 macro-F1 (test)": false,
     "Stage 2 macro-F1 (train CV)": true
   }
 }

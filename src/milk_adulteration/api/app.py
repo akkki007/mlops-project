@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import math
 import os
 import time
 from contextlib import asynccontextmanager
@@ -20,6 +21,9 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from milk_adulteration import __version__
@@ -58,6 +62,18 @@ def _none_if_nan(v: Any) -> Any:
     return None if v is None or (isinstance(v, float) and np.isnan(v)) else v
 
 
+def _json_safe(value: Any) -> Any:
+    """Make validation error details JSON-encodable (non-finite floats become strings)."""
+    value = jsonable_encoder(value, custom_encoder={Exception: str})
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    return value
+
+
 def model_version(model: Cascade, info: dict[str, Any]) -> str:
     if info.get("model_version"):
         return info["model_version"]
@@ -89,6 +105,12 @@ def create_app(model: Cascade | None = None, model_info: dict[str, Any] | None =
         "readings; Stage 2 names the likely adulterant. It triages; a lab confirms.",
         lifespan=lifespan,
     )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # The default handler echoes the rejected input, and NaN/Infinity inputs
+        # cannot be encoded as JSON, which turned a 422 into a 500.
+        return JSONResponse(status_code=422, content={"detail": _json_safe(exc.errors())})
 
     def get_model() -> Cascade:
         return state["model"]
@@ -145,6 +167,7 @@ def create_app(model: Cascade | None = None, model_info: dict[str, Any] | None =
             band=pred["band"],
             adulterant=pred["adulterant"],
             confidence=_none_if_nan(pred["confidence"]),
+            unusual_readings=pred["unusual_readings"],
             model_version=version(),
         )
 
@@ -168,7 +191,7 @@ def create_app(model: Cascade | None = None, model_info: dict[str, Any] | None =
                 df = pd.read_csv(io.BytesIO(await upload.read()), dtype=TEXT_COLUMNS)
             else:
                 raise HTTPException(415, "use application/json, text/csv or multipart/form-data")
-        except (ValueError, pd.errors.ParserError, UnicodeDecodeError) as exc:
+        except (ValueError, OverflowError, pd.errors.ParserError, UnicodeDecodeError) as exc:
             raise HTTPException(400, f"could not parse body: {exc}") from exc
         if df.empty:
             raise HTTPException(422, "batch is empty")
@@ -203,6 +226,7 @@ def create_app(model: Cascade | None = None, model_info: dict[str, Any] | None =
                         "band": p["band"],
                         "adulterant": p["adulterant"],
                         "confidence": _none_if_nan(p["confidence"]),
+                        "unusual_readings": p["unusual_readings"],
                     }
                 )
             else:

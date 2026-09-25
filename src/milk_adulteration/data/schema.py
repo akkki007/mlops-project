@@ -13,7 +13,9 @@ from milk_adulteration.config import PURE_CLASS, STAGE2_CLASSES
 # Plausible physical ranges (PRD: "Data validation (Pandera)").
 FEATURE_RANGES: dict[str, tuple[float, float]] = {
     "fat_pct": (0.0, 15.0),
-    "snf_pct": (0.0, 15.0),
+    # SNF below ~3% would mean roughly two-thirds water; below that the reading is
+    # an instrument or entry error, and fat/SNF ratios blow up near zero.
+    "snf_pct": (3.0, 15.0),
     "density": (1.000, 1.040),
     "ph": (5.5, 8.5),
     "freezing_point": (-1.0, 0.0),

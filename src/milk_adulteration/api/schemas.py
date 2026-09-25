@@ -2,27 +2,42 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field
 
 from milk_adulteration.data.schema import FEATURE_RANGES
 
 
+def _not_bool(value: object) -> object:
+    # Pydantic would otherwise read JSON true/false as 1.0/0.0.
+    if isinstance(value, bool):
+        raise ValueError("a reading must be a number, not true/false")
+    return value
+
+
+Reading = Annotated[float, BeforeValidator(_not_bool)]
+
+
 def _reading(name: str, description: str) -> object:
     lo, hi = FEATURE_RANGES[name]
-    return Field(ge=lo, le=hi, description=f"{description} (plausible range {lo} to {hi})")
+    return Field(
+        ge=lo,
+        le=hi,
+        allow_inf_nan=False,
+        description=f"{description} (plausible range {lo} to {hi})",
+    )
 
 
 class Sample(BaseModel):
     sample_id: str | None = Field(None, max_length=64)
     collection_point: str | None = Field(None, max_length=64)
-    fat_pct: float = _reading("fat_pct", "Fat, %")
-    snf_pct: float = _reading("snf_pct", "Solids-not-fat, %")
-    density: float = _reading("density", "Density, g/mL")
-    ph: float = _reading("ph", "pH")
-    freezing_point: float = _reading("freezing_point", "Freezing point, °C")
-    conductivity: float = _reading("conductivity", "Electrical conductivity, mS/cm")
+    fat_pct: Reading = _reading("fat_pct", "Fat, %")
+    snf_pct: Reading = _reading("snf_pct", "Solids-not-fat, %")
+    density: Reading = _reading("density", "Density, g/mL")
+    ph: Reading = _reading("ph", "pH")
+    freezing_point: Reading = _reading("freezing_point", "Freezing point, °C")
+    conductivity: Reading = _reading("conductivity", "Electrical conductivity, mS/cm")
 
     model_config = {
         "json_schema_extra": {
@@ -52,6 +67,11 @@ class Prediction(BaseModel):
     band: Band
     adulterant: str | None = Field(None, description="Likely adulterant, only when flagged")
     confidence: float | None = Field(None, description="Stage 2 probability of `adulterant`")
+    unusual_readings: list[str] = Field(
+        default_factory=list,
+        description="Readings outside what the model saw in training; such samples are "
+        "never accepted, only retested",
+    )
     model_version: str
 
 
@@ -64,6 +84,7 @@ class BatchRow(BaseModel):
     band: Band | None = None
     adulterant: str | None = None
     confidence: float | None = None
+    unusual_readings: list[str] = Field(default_factory=list)
     reject_reason: str | None = None
 
 

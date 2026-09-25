@@ -1,4 +1,5 @@
 import io
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -70,6 +71,7 @@ def test_predict_response_shape(client):
         "band",
         "adulterant",
         "confidence",
+        "unusual_readings",
         "model_version",
     }
     assert body["sample_id"] == "s1"
@@ -161,3 +163,49 @@ def test_batch_csv_keeps_text_ids_and_handles_blank_collection_point(client):
     assert r.status_code == 200, r.text
     assert [x["sample_id"] for x in r.json()["results"]] == ["007", "008"]
     assert 'collection_point="unknown"' in client.get("/metrics").text
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity", "true"])
+def test_predict_non_numbers_are_422_not_500(client, literal):
+    """Regression: NaN/Infinity crashed the 422 response; true was read as 1.0."""
+    body = json.dumps({k: v for k, v in PURE.items() if k != "fat_pct"})[:-1]
+    r = client.post(
+        "/predict",
+        content=f'{body}, "fat_pct": {literal}}}',
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 422, r.text
+    assert "fat_pct" in r.text
+
+
+def test_predict_numeric_collection_point(client):
+    """Regression: an int collection_point crashed the metrics label."""
+    r = client.post("/predict", json={**PURE, "collection_point": 5})
+    assert r.status_code in (200, 422)
+    assert r.status_code != 500
+
+
+def test_batch_numeric_collection_points_and_booleans(client):
+    csv = (
+        "collection_point,fat_pct,snf_pct,density,ph,freezing_point,conductivity\n"
+        "101,3.4,8.8,1.030,6.67,-0.53,4.85\n"
+    )
+    r = client.post("/predict/batch", content=csv, headers={"content-type": "text/csv"})
+    assert r.status_code == 200, r.text
+    rows = [{**PURE, "fat_pct": True}, PURE]
+    body = client.post("/predict/batch", json=rows).json()
+    assert body["results"][0]["status"] == "rejected"
+    assert "not a number" in body["results"][0]["reject_reason"]
+    assert body["results"][1]["status"] == "scored"
+
+
+def test_batch_huge_integer_is_400_not_500(client):
+    """Regression: an int too large for a float raised OverflowError (500)."""
+    content = '[{"fat_pct": 1' + "0" * 400 + ', "snf_pct": 8.8}]'
+    r = client.post("/predict/batch", content=content, headers={"content-type": "application/json"})
+    assert r.status_code == 400, r.text
+
+
+def test_impossible_snf_rejected(client):
+    """Regression: SNF near 0 was scored as pure."""
+    assert client.post("/predict", json={**PURE, "snf_pct": 0.5}).status_code == 422

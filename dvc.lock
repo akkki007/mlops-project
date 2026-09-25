@@ -33,12 +33,12 @@ stages:
       size: 2199
     - path: src/milk_adulteration/data/schema.py
       hash: md5
-      md5: 3206f6b9cc4f4e92fea43d7a1d5b822f
-      size: 1949
+      md5: b44526c4d768f69fd79b398ac531d988
+      size: 2106
     - path: src/milk_adulteration/data/validate.py
       hash: md5
-      md5: 54ce220571a678dfb8c6e85e2c58fceb
-      size: 4060
+      md5: d07388fc67e7f2182c9863779d61a51a
+      size: 4225
     params:
       params.yaml:
         validate:
@@ -180,8 +180,8 @@ stages:
       size: 185698
     - path: src/milk_adulteration/data/augment.py
       hash: md5
-      md5: 876f609fb4cf278bf7d5399c6ca26dbd
-      size: 5218
+      md5: d99a1752ef78eb9635d168f6e26bc267
+      size: 7410
     params:
       params.yaml:
         augment:
@@ -198,11 +198,32 @@ stages:
           - - water
             - urea
           rows_per_combo: 150
+          widen_pure:
+            rows: 2000
+            ranges:
+              fat_pct:
+              - 0.1
+              - 8.0
+              snf_pct:
+              - 8.3
+              - 10.0
+              density:
+              - 1.027
+              - 1.034
+              ph:
+              - 6.55
+              - 6.8
+              freezing_point:
+              - -0.56
+              - -0.52
+              conductivity:
+              - 3.5
+              - 5.5
     outs:
     - path: data/processed/train_aug.csv
       hash: md5
-      md5: 36ff1dccf49df5f5dbcf01c8dd359477
-      size: 743599
+      md5: b0c426bcb1a7f8fce32a8ee5813914d2
+      size: 1106403
   train:
     cmd: python -m milk_adulteration.models.train
     deps:
@@ -212,16 +233,16 @@ stages:
       size: 185698
     - path: data/processed/train_aug.csv
       hash: md5
-      md5: 36ff1dccf49df5f5dbcf01c8dd359477
-      size: 743599
+      md5: b0c426bcb1a7f8fce32a8ee5813914d2
+      size: 1106403
     - path: data/processed/val.csv
       hash: md5
       md5: 31b96085cf085723e847a4da08fe452f
       size: 39899
     - path: src/milk_adulteration/data/augment.py
       hash: md5
-      md5: 876f609fb4cf278bf7d5399c6ca26dbd
-      size: 5218
+      md5: d99a1752ef78eb9635d168f6e26bc267
+      size: 7410
     - path: src/milk_adulteration/evaluation.py
       hash: md5
       md5: 8c13a355c9b3949bd00c0d576848a5ab
@@ -232,12 +253,12 @@ stages:
       size: 1200
     - path: src/milk_adulteration/models/cascade.py
       hash: md5
-      md5: 63aecd7b2be049a873b5606e7162eb81
-      size: 3055
+      md5: 55ab010a8a4d2b14a0f045b23fd48cde
+      size: 4807
     - path: src/milk_adulteration/models/train.py
       hash: md5
-      md5: a50e1dd17fb40320bccd167a4845ad41
-      size: 12295
+      md5: 5042b58033633a25d3664e106db943f0
+      size: 13026
     params:
       params.yaml:
         augment:
@@ -254,6 +275,27 @@ stages:
           - - water
             - urea
           rows_per_combo: 150
+          widen_pure:
+            rows: 2000
+            ranges:
+              fat_pct:
+              - 0.1
+              - 8.0
+              snf_pct:
+              - 8.3
+              - 10.0
+              density:
+              - 1.027
+              - 1.034
+              ph:
+              - 6.55
+              - 6.8
+              freezing_point:
+              - -0.56
+              - -0.52
+              conductivity:
+              - 3.5
+              - 5.5
         train:
           seed: 42
           device: cpu
@@ -272,11 +314,11 @@ stages:
     outs:
     - path: models/cascade.joblib
       hash: md5
-      md5: 4724d659eed3f4726fb56137486718c6
-      size: 2555504
+      md5: 0ec004458112cea83fe3853e5dad0b53
+      size: 2606054
     - path: reports/train_cv.json
       hash: md5
-      md5: 384f4592da71995187107008ae428e91
+      md5: 78952db0bbe6f9a39a3b88783fce2083
       size: 854
   evaluate:
     cmd: python -m milk_adulteration.models.evaluate
@@ -287,20 +329,20 @@ stages:
       size: 40005
     - path: models/cascade.joblib
       hash: md5
-      md5: 4724d659eed3f4726fb56137486718c6
-      size: 2555504
+      md5: 0ec004458112cea83fe3853e5dad0b53
+      size: 2606054
     - path: reports/baselines.json
       hash: md5
       md5: e60b30a7c4f83e1056c64a26c81a0061
       size: 12878
     - path: reports/train_cv.json
       hash: md5
-      md5: 384f4592da71995187107008ae428e91
+      md5: 78952db0bbe6f9a39a3b88783fce2083
       size: 854
     - path: src/milk_adulteration/models/cascade.py
       hash: md5
-      md5: 63aecd7b2be049a873b5606e7162eb81
-      size: 3055
+      md5: 55ab010a8a4d2b14a0f045b23fd48cde
+      size: 4807
     - path: src/milk_adulteration/models/evaluate.py
       hash: md5
       md5: 5e3d23e3462bac79422d34ff847af7af
@@ -314,23 +356,23 @@ stages:
     outs:
     - path: reports/model.md
       hash: md5
-      md5: 79dda2070e76640dd23c1bb9421211e1
-      size: 4203
+      md5: cb05219bf5c1053587e953c78ba34743
+      size: 4206
     - path: reports/model_metrics.json
       hash: md5
-      md5: 6a8fd425df368201f1328c20671cb662
-      size: 1266
+      md5: 3be9823374dbc77c1950e74bea358191
+      size: 1254
   promote:
     cmd: python -m milk_adulteration.models.promote
     deps:
     - path: models/cascade.joblib
       hash: md5
-      md5: 4724d659eed3f4726fb56137486718c6
-      size: 2555504
+      md5: 0ec004458112cea83fe3853e5dad0b53
+      size: 2606054
     - path: reports/model_metrics.json
       hash: md5
-      md5: 6a8fd425df368201f1328c20671cb662
-      size: 1266
+      md5: 3be9823374dbc77c1950e74bea358191
+      size: 1254
     - path: src/milk_adulteration/models/promote.py
       hash: md5
       md5: 1e127d3503af1707a3c2bdc48c25be18
@@ -347,8 +389,8 @@ stages:
     outs:
     - path: models/model_info.json
       hash: md5
-      md5: beb737d3749daac7fa678ab0fc840130
-      size: 883
+      md5: ae2c5c415b621cec1baaad68ce31ff32
+      size: 885
     - path: reports/promotion.json
       hash: md5
       md5: ed976b1ce044812020184de4bff396ea
@@ -362,36 +404,57 @@ stages:
       size: 185698
     - path: models/cascade.joblib
       hash: md5
-      md5: 4724d659eed3f4726fb56137486718c6
-      size: 2555504
+      md5: 0ec004458112cea83fe3853e5dad0b53
+      size: 2606054
     - path: src/milk_adulteration/models/stress_test.py
       hash: md5
-      md5: 2d9fa6c82d8dce1fa32fd12c6bb2ef52
-      size: 5995
+      md5: bc7a793ad507723443405d20e66a5ea4
+      size: 7016
     params:
       params.yaml:
         stress_test:
           seed: 0
           samples: 2000
-          pure_ranges:
-            fat_pct:
-            - 3.0
-            - 5.0
-            snf_pct:
-            - 8.3
-            - 9.2
-            density:
-            - 1.027
-            - 1.033
-            ph:
-            - 6.6
-            - 6.8
-            freezing_point:
-            - -0.55
-            - -0.52
-            conductivity:
-            - 4.0
-            - 5.5
+          populations:
+            cow:
+              fat_pct:
+              - 3.0
+              - 5.0
+              snf_pct:
+              - 8.3
+              - 9.2
+              density:
+              - 1.027
+              - 1.033
+              ph:
+              - 6.6
+              - 6.8
+              freezing_point:
+              - -0.55
+              - -0.52
+              conductivity:
+              - 4.0
+              - 5.5
+            buffalo:
+              fat_pct:
+              - 5.0
+              - 8.0
+              snf_pct:
+              - 9.0
+              - 10.0
+              density:
+              - 1.03
+              - 1.034
+              ph:
+              - 6.6
+              - 6.8
+              freezing_point:
+              - -0.56
+              - -0.53
+              conductivity:
+              - 3.5
+              - 5.0
+          sweep_population: cow
           water:
             fat_pct: 0.0
             snf_pct: 0.0
@@ -412,9 +475,9 @@ stages:
     outs:
     - path: reports/stress_test.json
       hash: md5
-      md5: e1ea50185ce3bf77e482c57dcc0afcc3
-      size: 230
+      md5: 7034344e51fe56e77514458d29490e85
+      size: 231
     - path: reports/stress_test.md
       hash: md5
-      md5: 6abf13e0372abc86079d6d8f523f6b0d
-      size: 2388
+      md5: 14aa6d0658188ad0f515cd38f328a103
+      size: 2789

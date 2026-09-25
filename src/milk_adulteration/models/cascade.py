@@ -18,6 +18,24 @@ from milk_adulteration.features import feature_matrix
 BANDS = ("accept", "retest", "reject")
 
 
+def raw_score_at_risk(calibrator: IsotonicRegression, level: float) -> float:
+    """Lowest raw score whose calibrated risk reaches `level` (inf if it never does).
+
+    Isotonic predictions are monotone and piecewise linear between the fitted
+    points, so bisection on that interval finds it.
+    """
+    xs = calibrator.X_thresholds_
+    lo, hi = float(xs.min()), float(xs.max())
+    if calibrator.predict([hi])[0] < level:
+        return float("inf")
+    if calibrator.predict([lo])[0] >= level:
+        return lo
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        lo, hi = (lo, mid) if calibrator.predict([mid])[0] >= level else (mid, hi)
+    return hi
+
+
 @dataclass
 class Cascade:
     stage1: XGBClassifier
@@ -28,6 +46,9 @@ class Cascade:
     classes: list[str]  # Stage 2 label index -> adulterant class
     features: list[str]
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Per reading, the (min, max) the model saw in training. Tree models cannot
+    # extrapolate, so readings outside these are marked unusual and never "accept".
+    seen_ranges: dict[str, tuple[float, float]] | None = None
 
     def _X(self, df: pd.DataFrame) -> pd.DataFrame:
         return feature_matrix(df)[self.features]
@@ -43,9 +64,26 @@ class Cascade:
         # the resolution the threshold needs.
         return self.raw_score(df) >= self.threshold
 
-    def band(self, flagged: np.ndarray, risk: np.ndarray) -> np.ndarray:
-        """accept (not flagged), reject (flagged, risk >= reject_risk) or retest."""
-        return np.select([~flagged, risk >= self.reject_risk], ["accept", "reject"], "retest")
+    def band(
+        self, flagged: np.ndarray, risk: np.ndarray, unusual: np.ndarray | None = None
+    ) -> np.ndarray:
+        """reject: flagged with risk >= reject_risk. retest: flagged with lower risk, or
+        not flagged but with readings outside what the model saw. accept: the rest."""
+        unusual = np.zeros(len(flagged), dtype=bool) if unusual is None else unusual
+        return np.select(
+            [flagged & (risk >= self.reject_risk), flagged | unusual],
+            ["reject", "retest"],
+            "accept",
+        )
+
+    def unusual_readings(self, df: pd.DataFrame) -> list[list[str]]:
+        """Per row, the readings outside the training ranges (empty when unknown)."""
+        if not self.seen_ranges:
+            return [[] for _ in range(len(df))]
+        outside = pd.DataFrame(
+            {f: ~df[f].between(lo, hi) for f, (lo, hi) in self.seen_ranges.items()}
+        )
+        return [list(outside.columns[row]) for row in outside.to_numpy()]
 
     def adulterant_proba(self, df: pd.DataFrame) -> np.ndarray:
         return self.stage2.predict_proba(self._X(df))
@@ -56,13 +94,15 @@ class Cascade:
         raw = self.raw_score(df)
         risk = self.calibrator.predict(raw)
         flagged = raw >= self.threshold
+        unusual = self.unusual_readings(df)
         out = pd.DataFrame(
             {
                 "is_adulterated": flagged,
                 "risk_score": risk,
-                "band": self.band(flagged, risk),
+                "band": self.band(flagged, risk, np.array([bool(u) for u in unusual])),
                 "adulterant": None,
                 "confidence": np.nan,
+                "unusual_readings": unusual,
             },
             index=df.index,
         )

@@ -5,11 +5,11 @@ density, pH, freezing point, conductivity) using a two-stage XGBoost cascade.
 Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulterant.
 
 > **Not yet tested on real milk.** All results are on a synthetic dataset. A
-> physics stress test ([`reports/stress_test.md`](reports/stress_test.md)) finds
-> the model flags **39% of pure milk** spread across published normal ranges,
-> mainly because synthetic pure milk never freezes below −0.540 °C. See
-> [GUIDE.md](GUIDE.md) for how to test on real samples, and how to train on a GPU
-> (faster, not more accurate).
+> physics stress test ([`reports/stress_test.md`](reports/stress_test.md)) found the
+> first model flagged 39% of pure cow milk across published normal ranges; training
+> now widens pure milk to those ranges, which brings that to 0.6% (buffalo milk: 25%).
+> See [GUIDE.md](GUIDE.md) for the details, how to test on real samples, and how to
+> train on a GPU (faster, not more accurate).
 
 ## Status
 
@@ -115,14 +115,19 @@ model.predict(df)  # is_adulterated, risk_score, band, adulterant, confidence
 - **Calibration and threshold.** Isotonic calibration is fitted on out-of-fold
   scores of real rows. Samples are flagged on the raw Stage 1 score, at a
   threshold picked on validation for recall ≥ 0.95 and moved halfway to the next
-  lower score for a safety margin. Flagged samples with calibrated risk ≥ 0.5
-  are `reject`, the rest `retest`.
+  lower score for a safety margin. It is lowered further if needed so that no
+  sample with calibrated risk ≥ 0.5 is ever accepted. Flagged samples with risk
+  ≥ 0.5 are `reject`, the rest `retest`. Unflagged samples with readings outside
+  the training ranges are also `retest`.
+- **Pure-milk widening.** 2,000 extra pure rows stretched onto typical published
+  cow and buffalo ranges (`augment.widen_pure`). See GUIDE.md for why and what it
+  costs.
 
 | Test metric (detectable adulterants) | Result | Target |
 | --- | --- | --- |
 | Stage 1 recall | 1.00 (12/12) | ≥ 0.95 |
 | Stage 1 precision | 1.00 (0 false alarms) | ≥ 0.80 |
-| Stage 2 macro-F1 (test / train CV) | 0.90 / 0.82 | ≥ 0.80 |
+| Stage 2 macro-F1 (test / train CV) | 0.62 (19 samples) / 0.80 | ≥ 0.80 |
 | Single-sample p95 latency | ~14 ms | < 100 ms |
 
 On all adulterants, including `other`, Stage 1 catches 16 of 19 with no false
@@ -132,7 +137,7 @@ alarms. The Random Forest baseline needed 213 false alarms to catch all 19.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /predict` | One sample → `is_adulterated`, `risk_score`, `band`, `adulterant`, `confidence`, `model_version`. Out-of-range readings get a 422 with the reason. |
+| `POST /predict` | One sample → `is_adulterated`, `risk_score`, `band`, `adulterant`, `confidence`, `unusual_readings`, `model_version`. Out-of-range or non-numeric readings get a 422 with the reason. Readings outside what the model saw in training are listed in `unusual_readings` and never accepted. |
 | `POST /predict/batch` | Up to 10,000 samples as JSON, a CSV body (`text/csv`) or a CSV upload (multipart field `file`). Per-row results plus a summary; invalid rows are returned as `rejected` with a reason, never scored. |
 | `GET /model/info` | Registry version, MLflow run ID, data hashes, threshold, test metrics |
 | `GET /health` | Liveness |

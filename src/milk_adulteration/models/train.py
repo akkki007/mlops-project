@@ -32,12 +32,19 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.utils.class_weight import compute_sample_weight
 from xgboost import XGBClassifier
 
-from milk_adulteration.config import OTHER_CLASS, STAGE2_CLASSES, load_params, resolve, tracking_uri
+from milk_adulteration.config import (
+    FEATURES,
+    OTHER_CLASS,
+    STAGE2_CLASSES,
+    load_params,
+    resolve,
+    tracking_uri,
+)
 from milk_adulteration.data.augment import augment
 from milk_adulteration.evaluation import threshold_for_recall
 from milk_adulteration.features import feature_matrix
 from milk_adulteration.models.baselines import data_version, git_commit
-from milk_adulteration.models.cascade import Cascade
+from milk_adulteration.models.cascade import Cascade, raw_score_at_risk
 
 log = logging.getLogger(__name__)
 
@@ -253,6 +260,9 @@ def main() -> None:
             stage2=stage2,
             classes=list(STAGE2_CLASSES),
             features=list(feature_matrix(train.head(1)).columns),
+            seen_ranges={
+                f: (float(train_aug[f].min()), float(train_aug[f].max())) for f in FEATURES
+            },
             metadata={
                 "mlflow_run_id": run.info.run_id,
                 "stage1_params": s1.best_params,
@@ -264,13 +274,23 @@ def main() -> None:
             },
         )
         val_det = stage1_rows(val, excl)
-        model.threshold = threshold_for_recall(
+        recall_threshold = threshold_for_recall(
             val_det["is_adulterated"].to_numpy(),
             model.raw_score(val_det),
             p["target_recall"],
             midpoint=True,
         )
-        model.metadata["threshold"] = model.threshold
+        # Also flag anything the calibrated risk already calls likely adulterated, so
+        # no sample is accepted with risk >= reject_risk. (The calibrator is fitted on
+        # CV fold models, the recall threshold on the final model: their score gaps
+        # need not line up.)
+        risk_threshold = raw_score_at_risk(calibrator, p["reject_risk"])
+        model.threshold = min(recall_threshold, risk_threshold)
+        model.metadata.update(
+            threshold=model.threshold,
+            recall_threshold=recall_threshold,
+            risk_threshold=risk_threshold,
+        )
 
         mlflow.log_params({f"stage1.{k}": v for k, v in s1.best_params.items()})
         mlflow.log_params({f"stage2.{k}": v for k, v in s2.best_params.items()})
