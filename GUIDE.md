@@ -24,6 +24,26 @@ Treat these as "the pipeline works", not "the model works on milk":
 - Augmentation copies the adulterant patterns of the synthetic generator. If real
   adulterated milk behaves differently, the model has never seen it.
 
+### A physics stress test already shows a real-world problem
+
+No real labelled samples with all six readings were reachable: the Kaggle
+Lactoscanner data needs a login, the MADS repo doesn't ship its CSV, and the other
+public set is synthetic. So [`reports/stress_test.md`](reports/stress_test.md)
+(`dvc repro stress_test`) probes the model with *generated* samples based on dairy
+physics instead. The results:
+
+- **Pure milk across published normal ranges is flagged 39% of the time.** Within
+  the synthetic data's narrower pure-milk ranges, the rate is 0%.
+- **The cause is freezing point.** Synthetic pure milk never freezes below
+  −0.540 °C, so the model flags every sample colder than about −0.540 °C.
+  Real pure milk often reaches −0.550 °C, and buffalo milk (common in India) is
+  often colder still. Conductivity above about 5.3 mS/cm adds some false alarms.
+- **Water added by the mixing law is caught from 5% up** (100% flagged, and named
+  "water" 88–100% of the time). At 3%, 81% is flagged.
+
+**Expect many false alarms on real milk, especially buffalo milk, until the model
+is retrained on real pure samples.** Treat flags as "retest", not "reject".
+
 The only way to know how accurate the model is on real milk is to score it on real,
 lab-confirmed samples. Section 5 shows how.
 

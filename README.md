@@ -4,7 +4,10 @@ An MLOps service that flags adulterated milk from six routine readings (fat %, S
 density, pH, freezing point, conductivity) using a two-stage XGBoost cascade.
 Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulterant.
 
-> **Not yet tested on real milk.** All results are on a synthetic dataset. See
+> **Not yet tested on real milk.** All results are on a synthetic dataset. A
+> physics stress test ([`reports/stress_test.md`](reports/stress_test.md)) finds
+> the model flags **39% of pure milk** spread across published normal ranges,
+> mainly because synthetic pure milk never freezes below −0.540 °C. See
 > [GUIDE.md](GUIDE.md) for how to test on real samples, and how to train on a GPU
 > (faster, not more accurate).
 

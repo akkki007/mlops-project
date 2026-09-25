@@ -1,0 +1,12 @@
+{
+  "pure_false_alarm_rate": 0.387,
+  "pure_false_alarm_rate_inside_training_range": 0.0,
+  "water_flagged": {
+    "0.03": 0.8083197389885808,
+    "0.05": 1.0,
+    "0.1": 1.0,
+    "0.15": 1.0,
+    "0.2": 1.0,
+    "0.3": 1.0
+  }
+}

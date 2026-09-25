@@ -128,3 +128,18 @@ stages:
     metrics:
       - reports/promotion.json:
           cache: false
+
+  stress_test:
+    cmd: python -m milk_adulteration.models.stress_test
+    deps:
+      - data/processed/train.csv
+      - models/cascade.joblib
+      - src/milk_adulteration/models/stress_test.py
+    params:
+      - stress_test
+    outs:
+      - reports/stress_test.md:
+          cache: false
+    metrics:
+      - reports/stress_test.json:
+          cache: false

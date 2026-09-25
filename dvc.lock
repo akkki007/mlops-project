@@ -353,3 +353,68 @@ stages:
       hash: md5
       md5: ed976b1ce044812020184de4bff396ea
       size: 231
+  stress_test:
+    cmd: python -m milk_adulteration.models.stress_test
+    deps:
+    - path: data/processed/train.csv
+      hash: md5
+      md5: aa214d2eac093bc5cae4f9b25d75abbf
+      size: 185698
+    - path: models/cascade.joblib
+      hash: md5
+      md5: 4724d659eed3f4726fb56137486718c6
+      size: 2555504
+    - path: src/milk_adulteration/models/stress_test.py
+      hash: md5
+      md5: 2d9fa6c82d8dce1fa32fd12c6bb2ef52
+      size: 5995
+    params:
+      params.yaml:
+        stress_test:
+          seed: 0
+          samples: 2000
+          pure_ranges:
+            fat_pct:
+            - 3.0
+            - 5.0
+            snf_pct:
+            - 8.3
+            - 9.2
+            density:
+            - 1.027
+            - 1.033
+            ph:
+            - 6.6
+            - 6.8
+            freezing_point:
+            - -0.55
+            - -0.52
+            conductivity:
+            - 4.0
+            - 5.5
+          water:
+            fat_pct: 0.0
+            snf_pct: 0.0
+            density: 0.998
+            ph: 7.0
+            freezing_point: 0.0
+            conductivity: 0.5
+          water_fractions:
+          - 0.03
+          - 0.05
+          - 0.1
+          - 0.15
+          - 0.2
+          - 0.3
+          sweep_points: 9
+          report: reports/stress_test.md
+          metrics: reports/stress_test.json
+    outs:
+    - path: reports/stress_test.json
+      hash: md5
+      md5: e1ea50185ce3bf77e482c57dcc0afcc3
+      size: 230
+    - path: reports/stress_test.md
+      hash: md5
+      md5: 6abf13e0372abc86079d6d8f523f6b0d
+      size: 2388
