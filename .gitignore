@@ -9,6 +9,7 @@ __pycache__/
 /data/raw/
 /data/interim/
 /data/processed/
+/models/
 # Local MLflow tracking store
 mlflow.db
 mlruns/

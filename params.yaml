@@ -37,3 +37,38 @@ baselines:
   random_forest:
     n_estimators: 500
     min_samples_leaf: 1
+
+augment:
+  input: data/processed/train.csv
+  output: data/processed/train_aug.csv
+  seed: 42
+  target_per_class: 300
+  # Each synthetic row = random pure train row + dose * (real positive - its milk type's pure mean)
+  dose_range: [0.5, 1.5]
+  # Masked fraud: two adulterants in one sample. Used for Stage 1 only.
+  combos:
+    - [water, starch]
+    - [water, urea]
+  rows_per_combo: 150
+
+train:
+  seed: 42
+  cv_folds: 5
+  n_trials_stage1: 30
+  n_trials_stage2: 30
+  # Decided with the user: the recall target covers adulterants field readings can
+  # detect, so Stage 1 does not train on `other` (formalin, H2O2, veg oil, melamine).
+  stage1_exclude_other: true
+  target_recall: 0.95
+  # Calibrated risk at or above this is "reject"; between the threshold and this, "retest".
+  reject_risk: 0.5
+  model: models/cascade.joblib
+  cv_report: reports/train_cv.json
+  mlflow:
+    tracking_uri: sqlite:///mlflow.db
+    experiment: cascade
+
+evaluate:
+  bootstrap_rounds: 1000
+  report: reports/model.md
+  metrics: reports/model_metrics.json

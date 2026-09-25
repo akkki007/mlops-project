@@ -25,11 +25,12 @@ def raw_rows() -> pd.DataFrame:
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def synthetic_clean() -> pd.DataFrame:
     """A clean-schema table: 300 pure rows plus 10 rows per Stage 2 class.
 
     Each adulterant shifts one reading so models have something to learn.
+    Session-scoped for speed: tests must not modify it in place.
     """
     import numpy as np
 

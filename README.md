@@ -10,8 +10,8 @@ Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulter
 | --- | --- | --- |
 | 1 | Data in: download, EDA, Pandera schema, DVC | Done |
 | 2 | Baselines: FSSAI rules, logistic regression, Random Forest | Done |
-| 3 | Two-stage XGBoost, augmentation, calibration | Next |
-| 4 | FastAPI service, Docker, GitHub Actions | |
+| 3 | Two-stage XGBoost, augmentation, calibration | Done: exit criterion met |
+| 4 | FastAPI service, Docker, GitHub Actions | Next |
 | 5 | React dashboard, PostgreSQL, Prometheus + Grafana | |
 | 6 | Validation on real data, SHAP report, write-up | |
 
@@ -20,7 +20,7 @@ Stage 1 scores whether a sample is adulterated; Stage 2 names the likely adulter
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
-dvc repro          # ingest -> validate -> eda -> split -> baselines
+dvc repro          # ingest -> validate -> eda -> split -> baselines -> augment -> train -> evaluate
 mlflow ui --backend-store-uri sqlite:///mlflow.db   # browse runs
 pytest -q
 ```
@@ -34,6 +34,9 @@ pytest -q
 | `eda` | `milk_adulteration.eda` | [`reports/eda.md`](reports/eda.md), `reports/eda_summary.json` (DVC metrics) |
 | `split` | `milk_adulteration.data.split` | `data/processed/{train,val,test}.csv`: 70/15/15, stratified on adulterant class, seed 42 |
 | `baselines` | `milk_adulteration.models.baselines` | [`reports/baselines.md`](reports/baselines.md), `reports/baselines.json`, one MLflow run per model |
+| `augment` | `milk_adulteration.data.augment` | `data/processed/train_aug.csv`: every Stage 2 class grown to 300 rows, plus water+starch and water+urea rows |
+| `train` | `milk_adulteration.models.train` | `models/cascade.joblib`, `reports/train_cv.json`; Optuna trials as nested MLflow runs |
+| `evaluate` | `milk_adulteration.models.evaluate` | [`reports/model.md`](reports/model.md), `reports/model_metrics.json` |
 
 The source is the CC0 [Indian Milk Adulteration Detection Dataset](https://github.com/ommadav/Indian-Milk-Adulteration-Detection-Dataset)
 (2,500 rows, **synthetic**). Only the six field-level readings are kept; the lab-only
@@ -73,3 +76,42 @@ formula, and freezing-point deviation from −0.52 °C.
 
 MLflow runs are tagged with the SHA-256 of each split file and the git commit.
 Tracking is a local SQLite store (`mlflow.db`, not committed).
+
+## Two-stage cascade (Week 3)
+
+Full results are in [`reports/model.md`](reports/model.md). Results are on synthetic data.
+
+```python
+from milk_adulteration.models.cascade import Cascade
+
+model = Cascade.load("models/cascade.joblib")
+model.predict(df)  # is_adulterated, risk_score, band, adulterant, confidence
+```
+
+- **Recall target scope.** The recall target covers the *detectable* adulterants.
+  `other` (formalin, H₂O₂, vegetable oil, melamine) looks like pure milk in the six
+  readings and goes to a confirmatory lab test. Stage 1 does not train on it
+  (`train.stage1_exclude_other`).
+- **Augmentation** (`data/augment.py`) uses "shift transplant": a random pure
+  training row plus the measured shift of a real adulterated training row, scaled
+  by a dose of 0.5–1.5×. A physical mixing model was not used because the source
+  data does not follow one: its water rows imply 12–40% dilution depending on
+  which reading you use.
+- **Tuning.** Optuna runs 30 trials per stage on 5-fold CV over real training
+  rows. Each fold is augmented from its own training part and scored only on real
+  rows.
+- **Calibration and threshold.** Isotonic calibration is fitted on out-of-fold
+  scores of real rows. Samples are flagged on the raw Stage 1 score, at a
+  threshold picked on validation for recall ≥ 0.95 and moved halfway to the next
+  lower score for a safety margin. Flagged samples with calibrated risk ≥ 0.5
+  are `reject`, the rest `retest`.
+
+| Test metric (detectable adulterants) | Result | Target |
+| --- | --- | --- |
+| Stage 1 recall | 1.00 (12/12) | ≥ 0.95 |
+| Stage 1 precision | 1.00 (0 false alarms) | ≥ 0.80 |
+| Stage 2 macro-F1 (test / train CV) | 0.90 / 0.82 | ≥ 0.80 |
+| Single-sample p95 latency | ~14 ms | < 100 ms |
+
+On all adulterants, including `other`, Stage 1 catches 16 of 19 with no false
+alarms. The Random Forest baseline needed 213 false alarms to catch all 19.

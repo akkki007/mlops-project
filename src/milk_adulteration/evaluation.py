@@ -14,17 +14,26 @@ from sklearn.metrics import (
 )
 
 
-def threshold_for_recall(y_true: np.ndarray, score: np.ndarray, target: float) -> float:
+def threshold_for_recall(
+    y_true: np.ndarray, score: np.ndarray, target: float, midpoint: bool = False
+) -> float:
     """Highest threshold whose recall (predicting `score >= t`) meets `target`.
 
-    The highest such threshold gives the fewest false alarms at that recall.
+    The highest such threshold gives the fewest false alarms at that recall. With
+    `midpoint`, the threshold moves halfway down to the next lower observed score:
+    the same predictions on this data, but a safety margin for new samples.
     """
     _, recall, thresholds = precision_recall_curve(y_true, score)
     # recall[i] belongs to thresholds[i]; the last recall value has no threshold.
     ok = np.flatnonzero(recall[:-1] >= target)
     if ok.size == 0:
         return float(np.min(score))
-    return float(thresholds[ok.max()])
+    thr = float(thresholds[ok.max()])
+    if midpoint:
+        below = np.asarray(score)[np.asarray(score) < thr]
+        if below.size:
+            thr = float((thr + below.max()) / 2)
+    return thr
 
 
 def binary_metrics(y_true: np.ndarray, score: np.ndarray, threshold: float) -> dict[str, float]:

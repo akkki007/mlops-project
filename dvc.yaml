@@ -65,3 +65,51 @@ stages:
     metrics:
       - reports/baselines.json:
           cache: false
+
+  augment:
+    cmd: python -m milk_adulteration.data.augment
+    deps:
+      - data/processed/train.csv
+      - src/milk_adulteration/data/augment.py
+    params:
+      - augment
+    outs:
+      - data/processed/train_aug.csv
+
+  train:
+    cmd: python -m milk_adulteration.models.train
+    deps:
+      - data/processed/train.csv
+      - data/processed/train_aug.csv
+      - data/processed/val.csv
+      - src/milk_adulteration/data/augment.py
+      - src/milk_adulteration/evaluation.py
+      - src/milk_adulteration/features.py
+      - src/milk_adulteration/models/cascade.py
+      - src/milk_adulteration/models/train.py
+    params:
+      - augment
+      - train
+    outs:
+      - models/cascade.joblib
+    metrics:
+      - reports/train_cv.json:
+          cache: false
+
+  evaluate:
+    cmd: python -m milk_adulteration.models.evaluate
+    deps:
+      - data/processed/test.csv
+      - models/cascade.joblib
+      - reports/train_cv.json
+      - reports/baselines.json
+      - src/milk_adulteration/models/cascade.py
+      - src/milk_adulteration/models/evaluate.py
+    params:
+      - evaluate
+    outs:
+      - reports/model.md:
+          cache: false
+    metrics:
+      - reports/model_metrics.json:
+          cache: false

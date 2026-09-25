@@ -1,0 +1,28 @@
+{
+  "stage1_cv_pr_auc": 1.0,
+  "stage1_cv_pr_auc_no_aug": 0.9713057450984618,
+  "stage2_cv_macro_f1": 0.8179021380865643,
+  "stage2_cv_macro_f1_no_aug": 0.37572617333646746,
+  "threshold": 0.546407163143158,
+  "stage1_params": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.1205712628744377,
+    "subsample": 0.8394633936788146,
+    "colsample_bytree": 0.6624074561769746,
+    "min_child_weight": 1.4321698289111515,
+    "reg_lambda": 0.0017073967431528124,
+    "gamma": 4.330880728874676
+  },
+  "stage2_params": {
+    "n_estimators": 350,
+    "max_depth": 2,
+    "learning_rate": 0.013909973878275547,
+    "subsample": 0.9037746771371291,
+    "colsample_bytree": 0.9453246440870489,
+    "min_child_weight": 6.916404213527353,
+    "reg_lambda": 0.17161345879838527,
+    "gamma": 3.767889641858401
+  },
+  "calibration_rows": 1716
+}
