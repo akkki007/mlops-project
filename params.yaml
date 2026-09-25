@@ -53,6 +53,10 @@ augment:
 
 train:
   seed: 42
+  # "cpu" or "cuda" (NVIDIA GPU; needs the full `xgboost` package, see GUIDE.md).
+  # The saved model is always switched back to CPU so the API can serve it.
+  device: cpu
+  n_jobs: 4
   cv_folds: 5
   n_trials_stage1: 30
   n_trials_stage2: 30

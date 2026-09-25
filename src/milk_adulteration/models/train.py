@@ -65,6 +65,34 @@ def stage2_rows(df: pd.DataFrame) -> pd.DataFrame:
     return pos[pos["aug_combo"] == ""] if "aug_combo" in pos else pos
 
 
+# Set once in main() from params: where XGBoost trains ("cpu" or "cuda") and threads.
+RUNTIME: dict[str, Any] = {"device": "cpu", "n_jobs": 4}
+
+
+def check_device(device: str) -> None:
+    """Fail loudly if a GPU was asked for but XGBoost cannot use one.
+
+    XGBoost otherwise falls back to CPU with only a log warning.
+    """
+    if device == "cpu":
+        return
+    import xgboost
+
+    if not xgboost.build_info().get("USE_CUDA"):
+        raise RuntimeError(
+            f"train.device={device!r} but this XGBoost build has no CUDA support. "
+            "Install the full package: pip uninstall -y xgboost-cpu && pip install xgboost"
+        )
+    X = np.random.default_rng(0).random((64, 2))
+    booster = XGBClassifier(n_estimators=2, device=device).fit(X, X[:, 0] > 0.5).get_booster()
+    if f'"device":"{device}' not in booster.save_config().replace(" ", ""):
+        raise RuntimeError(f"train.device={device!r} but XGBoost found no usable GPU")
+
+
+def _runtime() -> dict[str, Any]:
+    return {"device": RUNTIME["device"], "n_jobs": RUNTIME["n_jobs"]}
+
+
 def fit_stage1(train: pd.DataFrame, params: dict[str, Any], seed: int) -> XGBClassifier:
     y = train["is_adulterated"].to_numpy()
     model = XGBClassifier(
@@ -72,7 +100,7 @@ def fit_stage1(train: pd.DataFrame, params: dict[str, Any], seed: int) -> XGBCla
         scale_pos_weight=(y == 0).sum() / max((y == 1).sum(), 1),
         eval_metric="aucpr",
         random_state=seed,
-        n_jobs=4,
+        **_runtime(),
     )
     return model.fit(feature_matrix(train), y)
 
@@ -85,7 +113,7 @@ def fit_stage2(train: pd.DataFrame, params: dict[str, Any], seed: int) -> XGBCla
         num_class=len(STAGE2_CLASSES),
         eval_metric="mlogloss",
         random_state=seed,
-        n_jobs=4,
+        **_runtime(),
     )
     return model.fit(feature_matrix(train), y, sample_weight=compute_sample_weight("balanced", y))
 
@@ -157,6 +185,9 @@ def main() -> None:
     params = load_params()
     p, aug_p = params["train"], params["augment"]
     seed, excl = p["seed"], p["stage1_exclude_other"]
+    RUNTIME.update(device=p.get("device", "cpu"), n_jobs=p.get("n_jobs", 4))
+    check_device(RUNTIME["device"])
+    log.info("Training on %s", RUNTIME["device"])
     split_dir = resolve(params["split"]["output_dir"])
 
     train = pd.read_csv(split_dir / "train.csv")
@@ -172,7 +203,13 @@ def main() -> None:
         mlflow.log_params(
             {f"augment.{k}": v for k, v in aug_p.items() if k not in ("input", "output")}
         )
-        mlflow.log_params({"stage1_exclude_other": excl, "target_recall": p["target_recall"]})
+        mlflow.log_params(
+            {
+                "stage1_exclude_other": excl,
+                "target_recall": p["target_recall"],
+                "train_device": RUNTIME["device"],
+            }
+        )
 
         def s1_objective(prm: dict[str, Any]) -> float:
             y, s, _ = folds.oof_stage1(prm, excl, seed)
@@ -205,6 +242,9 @@ def main() -> None:
 
         stage1 = fit_stage1(stage1_rows(train_aug, excl), s1.best_params, seed)
         stage2 = fit_stage2(stage2_rows(train_aug), s2.best_params, seed)
+        # Serve on CPU whatever we trained on: the API and Docker image have no GPU.
+        for m in (stage1, stage2):
+            m.set_params(device="cpu")
         model = Cascade(
             stage1=stage1,
             calibrator=calibrator,
@@ -218,6 +258,7 @@ def main() -> None:
                 "stage1_params": s1.best_params,
                 "stage2_params": s2.best_params,
                 "stage1_exclude_other": excl,
+                "train_device": RUNTIME["device"],
                 **data_version(split_dir),
                 "git_commit": git_commit(),
             },

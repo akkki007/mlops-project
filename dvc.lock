@@ -236,8 +236,8 @@ stages:
       size: 3055
     - path: src/milk_adulteration/models/train.py
       hash: md5
-      md5: 2ed665d79d0be951f80a48ffc444670a
-      size: 10729
+      md5: a50e1dd17fb40320bccd167a4845ad41
+      size: 12295
     params:
       params.yaml:
         augment:
@@ -256,6 +256,8 @@ stages:
           rows_per_combo: 150
         train:
           seed: 42
+          device: cpu
+          n_jobs: 4
           cv_folds: 5
           n_trials_stage1: 30
           n_trials_stage2: 30
@@ -270,8 +272,8 @@ stages:
     outs:
     - path: models/cascade.joblib
       hash: md5
-      md5: b5fe5e132e7cdcafe6237b0f3425aeea
-      size: 2555466
+      md5: 4724d659eed3f4726fb56137486718c6
+      size: 2555504
     - path: reports/train_cv.json
       hash: md5
       md5: 384f4592da71995187107008ae428e91
@@ -285,8 +287,8 @@ stages:
       size: 40005
     - path: models/cascade.joblib
       hash: md5
-      md5: b5fe5e132e7cdcafe6237b0f3425aeea
-      size: 2555466
+      md5: 4724d659eed3f4726fb56137486718c6
+      size: 2555504
     - path: reports/baselines.json
       hash: md5
       md5: e60b30a7c4f83e1056c64a26c81a0061
@@ -312,7 +314,7 @@ stages:
     outs:
     - path: reports/model.md
       hash: md5
-      md5: 80c07e2cacd1085edac7733dbfb7915c
+      md5: 79dda2070e76640dd23c1bb9421211e1
       size: 4203
     - path: reports/model_metrics.json
       hash: md5
@@ -323,8 +325,8 @@ stages:
     deps:
     - path: models/cascade.joblib
       hash: md5
-      md5: b5fe5e132e7cdcafe6237b0f3425aeea
-      size: 2555466
+      md5: 4724d659eed3f4726fb56137486718c6
+      size: 2555504
     - path: reports/model_metrics.json
       hash: md5
       md5: 6a8fd425df368201f1328c20671cb662
@@ -345,7 +347,7 @@ stages:
     outs:
     - path: models/model_info.json
       hash: md5
-      md5: f1c0540f8924bd563c206eb0db739565
+      md5: beb737d3749daac7fa678ab0fc840130
       size: 883
     - path: reports/promotion.json
       hash: md5
