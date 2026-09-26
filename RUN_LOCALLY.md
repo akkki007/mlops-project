@@ -36,22 +36,28 @@ pip install -e ".[dev]"
 
 On macOS, XGBoost also needs OpenMP: `brew install libomp`.
 
-**Windows** (PowerShell):
+**Windows** (Command Prompt, `cmd.exe`):
 
-```powershell
+```bat
 git clone https://github.com/akkki007/mlops-project.git
 cd mlops-project
-git checkout claude/work-prioritization-5tfpx6    # or main, once merged
+git checkout claude/work-prioritization-5tfpx6
 py -3.11 -m venv .venv
-.venv\Scripts\Activate.ps1
+.venv\Scripts\activate.bat
 pip install -e ".[dev]"
 ```
 
-If PowerShell refuses to run the activate script, run
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, then try again.
+In PowerShell, the activate line is `.venv\Scripts\Activate.ps1` instead. If
+PowerShell refuses to run it, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+once, then try again.
 
-Every later session starts with `cd mlops-project` and the activate line
-(`source .venv/bin/activate`, or `.venv\Scripts\Activate.ps1` on Windows).
+Every later session starts with `cd mlops-project` and the activate line. Your
+prompt then begins with `(.venv)`.
+
+> **Windows: type each command on one line.** Commands in this guide are written on
+> one line so they paste into Command Prompt and PowerShell as they are. The `\` at
+> the end of a line that you may see in Linux guides doesn't work on Windows:
+> Command Prompt uses `^` instead, and PowerShell uses a backtick (`` ` ``).
 
 ## 3. Get the trained model (once, about 6 minutes)
 
@@ -109,13 +115,11 @@ is the most common reason for every sample coming back rejected or flagged.
 Put your file in the project folder (here `my_samples.csv`) and run:
 
 ```bash
-python -m milk_adulteration.models.evaluate_external my_samples.csv \
-    --predictions results/my_results.csv \
-    --out results/my_report.md
+python -m milk_adulteration.models.evaluate_external my_samples.csv --predictions results/my_results.csv --out results/my_report.md
 ```
 
-On Windows PowerShell, write it on one line, or end each line with a backtick (`` ` ``)
-instead of `\`.
+The `results` folder is created for you. To try it before your own file is ready,
+score the template: replace `my_samples.csv` with `examples/real_samples_template.csv`.
 
 **`results/my_results.csv`** has one row per sample: all your columns, then
 
@@ -139,9 +143,7 @@ Fill in `is_adulterated` (and `adulterant` if known) for each sample, then add
 `--label is_adulterated --adulterant adulterant`:
 
 ```bash
-python -m milk_adulteration.models.evaluate_external my_samples.csv \
-    --label is_adulterated --adulterant adulterant \
-    --predictions results/my_results.csv --out results/my_report.md
+python -m milk_adulteration.models.evaluate_external my_samples.csv --label is_adulterated --adulterant adulterant --predictions results/my_results.csv --out results/my_report.md
 ```
 
 The report then shows recall (share of adulterated samples caught), precision
@@ -187,7 +189,9 @@ samples would show the model's real accuracy and let it be retrained on real mil
 
 | Problem | Fix |
 | --- | --- |
+| `error: unrecognized arguments: \` | You pasted a multi-line Linux command into Windows. Put the whole command on one line |
 | `python3.11: command not found` / `py -3.11` fails | Install Python 3.11, or use the `python3`/`python` you have if `python --version` says 3.11 or later |
+| `No such file or directory: my_samples.csv` | Put the CSV in the `mlops-project` folder, or give its full path in quotes, e.g. `"D:\data\my samples.csv"` |
 | `No such file or directory: models/cascade.joblib` | Run step 3 (`dvc repro`) first |
 | `is missing columns [...]` | Your headers differ: use `--rename` (step 4) |
 | Every row `rejected`, reasons mention `freezing_point` | Freezing point is probably in °H or positive; use `--freezing-point-unit H` and make sure values are negative |
